@@ -1,0 +1,5 @@
+(executable
+  (name kvmtest)
+  (libraries pkvm_proxy logs.fmt fmt.tty))
+
+(env (release (link_flags (-ccopt -static))))

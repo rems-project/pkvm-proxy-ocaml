@@ -1,0 +1,10 @@
+(library
+  (name pkvm_proxy)
+  (public_name pkvm-proxy)
+  (synopsis "pKVM userspace proxy")
+  (wrapped false)
+  (foreign_stubs
+    (language c)
+    (names pkvm-proxy)
+    (flags (:standard -Wall -Wextra -O3)))
+  (libraries unix bigarray fmt logs))
