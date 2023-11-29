@@ -1,0 +1,32 @@
+#!/bin/sh
+
+PREFIX='aarch64-linux-gnu'
+
+function find_tool() {
+  RET="$(which ${PREFIX}-${1})"
+  if [[ $? -gt 0 ]]; then
+    RET="$(which ${1})"
+    if [[ $? -gt 0 ]]; then
+      echo "Cannot find ${1}" >&2
+      exit 1
+    fi
+  fi
+}
+
+find_tool as
+AS="$RET"
+
+find_tool objcopy
+OBJCOPY="$RET"
+
+tmp1=$(mktemp)
+tmp2=$(mktemp)
+
+$AS -o $tmp1 $1
+$OBJCOPY -O binary $tmp1 $tmp2
+
+echo -n 'let code = "' > $2
+hexdump -ve '1 1 "%03o"' < $tmp2|sed 's:\(...\):\\o\1:g' >> $2
+echo '"' >> $2
+
+rm -f $tmp1 $tmp2

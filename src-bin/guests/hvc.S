@@ -1,0 +1,13 @@
+add x0, x1, x0
+
+# HVC 0xc6000003 - ARM_SMCCC_VENDOR_HYP_KVM_MEM_SHARE_FUNC_ID
+movz w0, 0x0003
+movk w0, 0xc600, lsl 16
+mov  w1, 0x5000
+hvc 0
+
+# HVC 0xc6000003 - ARM_SMCCC_VENDOR_HYP_KVM_MEM_UNSHARE_FUNC_ID
+movz w0, 0x0004
+movk w0, 0xc600, lsl 16
+mov  w1, 0x5000
+hvc 0

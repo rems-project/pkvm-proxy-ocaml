@@ -1,5 +1,11 @@
 (executable
   (name kvmtest)
-  (libraries pkvm_proxy logs.fmt fmt.tty))
+  (libraries pkvm_proxy logs.fmt fmt.tty cmdliner logs.cli))
+
+(rule
+  (target guest.ml)
+  (deps guests/hvc.S)
+  (action
+    (run guests/assemble %{deps} %{target})))
 
 (env (release (link_flags (-ccopt -static))))
