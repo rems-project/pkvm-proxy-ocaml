@@ -4,10 +4,6 @@ let pkvm = Unix.(openfile "/sys/kernel/debug/pkvm_proxy" [O_RDWR] 0)
 
 (** Hyp-proxy types **)
 
-(* From arch/arm64/include/asm/kvm_asm.h *)
-type arm_exception = EXCEPTION_IRQ | EXCEPTION_EL1_SERROR | EXCEPTION_TRAP | EXCEPTION_IL
-let arm_exception_of_int : int -> arm_exception = Obj.magic
-
 (** Host hypercalls. `enum __kvm_host_smccc_func`, and their ioctl arguments. **)
 type _ host_smccc_func =
 
@@ -32,7 +28,7 @@ type _ host_smccc_func =
   | Pkvm_host_reclaim_page : int64 -> unit host_smccc_func
   | Pkvm_host_map_guest    : int64 * int64 -> unit host_smccc_func
   | Kvm_adjust_pc
-  | Kvm_vcpu_run           : int64 -> arm_exception host_smccc_func
+  | Kvm_vcpu_run           : int64 -> int host_smccc_func
   | Kvm_timer_set_cntvoff
   | Vgic_v3_save_vmcr_aprs
   | Vgic_v3_restore_vmcr_aprs
@@ -143,7 +139,7 @@ let hvc (type a): a host_smccc_func -> a = function
 | Pkvm_host_map_guest (phys, gphys) ->
     ioctl_p_wr_vec pkvm (proxy_ioctl 16 2) int64 [|phys; gphys|] |> returns_0
 | Kvm_vcpu_run vcpu_kaddr ->
-    ioctl_p_wr pkvm (proxy_ioctl 18 1) int64 vcpu_kaddr |> arm_exception_of_int
+    ioctl_p_wr pkvm (proxy_ioctl 18 1) int64 vcpu_kaddr
 | Pkvm_init_vm (host, hyp, pgd, last_ran) ->
     ioctl_p_wr_vec pkvm (proxy_ioctl 22 4) int64 [|host; hyp; pgd; last_ran|]
 | Pkvm_init_vcpu (hdl, host, hyp) ->
@@ -301,12 +297,6 @@ let pp_host_smccc_func (type a) ppf: a host_smccc_func -> _ = function
 | Pkvm_vcpu_put                      -> Fmt.pf ppf "PKVM_VCPU_PUT"
 | Pkvm_vcpu_sync_state               -> Fmt.pf ppf "PKVM_VCPU_SYNC_STATE"
 
-let pp_arm_exception ppf exn = Fmt.string ppf @@ match exn with
-  | EXCEPTION_IRQ        -> "EXCEPTION_IRQ"
-  | EXCEPTION_EL1_SERROR -> "EXCEPTION_EL1_SERROR"
-  | EXCEPTION_TRAP       -> "EXCEPTION_TRAP"
-  | EXCEPTION_IL         -> "EXCEPTION_IL"
-
 let pp_regs ppf rg =
   let px ppf = Fmt.pf ppf "0x%Lx" in
   Fmt.pf ppf "@[<v1>[regs: @[%a@],@ sp: 0x%Lx,@ pc: 0x%Lx,@ pstate: 0x%Lx]@]"
@@ -324,7 +314,8 @@ let pp_region ppf reg =
 (** Higher-level ops **)
 
 module Log = (val Logs.(Src.create "Pkvm_proxy" |> src_log))
-let hvc func = Log.debug (fun k -> k "hvc %a" pp_host_smccc_func func); hvc func
+
+let hvc func = Log.info (fun k -> k "hvc %a" pp_host_smccc_func func); hvc func
 
 let page_size  = 4096
 and page_shift = 12
@@ -336,7 +327,7 @@ let kernel_region_alloc size =
   and mmap  = lazy ( let p = super_unsafe_ba_mmap fd size in bzero p; p ) in
   let res = { fd; size; kaddr; phys; mmap; __xx = ignore } in
   Gc.finalise (fun r -> if Lazy.is_val r.mmap then ba_munmap (Lazy.force r.mmap)) res;
-  Log.info (fun k -> k "kernel_region_alloc ->@ %a" pp_region res);
+  Log.debug (fun k -> k "kernel_region_alloc ->@ %a" pp_region res);
   res
 
 let kernel_region_release reg = alloc_release reg.fd
@@ -372,11 +363,11 @@ let init_vm ?(protected = false) () =
   host_kvm.@[created_vcpus] <- Int32.of_int num_vcpu;
   let h = hvc (Pkvm_init_vm (host_kvm.kaddr, hyp_kvm.kaddr, pgd.kaddr, last_ran.kaddr)) in
 
-  Log.info (fun k -> k "init_vm ->@ %d@ %a" h pp_region host_kvm);
+  Log.debug (fun k -> k "init_vm ->@ %d@ %a" h pp_region host_kvm);
   host_kvm, h
 
 let teardown_vm handle vm =
-  Log.info (fun k -> k "teardown_vm@ %d@ %a@ ->" handle pp_region vm);
+  Log.debug (fun k -> k "teardown_vm@ %d@ %a@ ->" handle pp_region vm);
   hvc (Pkvm_teardown_vm handle);
   free_hyp_memcache vm.@[arch_pkvm_teardown_mc];
   kernel_region_unshare_hyp vm;
@@ -393,7 +384,7 @@ let init_vcpu handle idx =
   host_vcpu.@[vcpu_hcr_el2] <- Int64.(1L lsl 31);
   hvc (Pkvm_init_vcpu (handle, host_vcpu.kaddr, hyp_vcpu.kaddr));
 
-  Log.info (fun k -> k "init_vcpu@ %d@ %d@ -> %a" handle idx pp_region host_vcpu);
+  Log.debug (fun k -> k "init_vcpu@ %d@ %d@ -> %a" handle idx pp_region host_vcpu);
   host_vcpu
 
 let vcpu_set_dirty reg = reg.@[vcpu_iflags] <- 0x80
