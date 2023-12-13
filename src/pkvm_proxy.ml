@@ -1,4 +1,5 @@
 open Bigarray
+open Pkvm_proxy_utils
 
 let pkvm = Unix.(openfile "/sys/kernel/debug/pkvm_proxy" [O_RDWR] 0)
 
@@ -48,41 +49,9 @@ type fault_info = {
   disr_el1  : int64; (* Deferred [SError] Status Register *)
 }
 
-(** The missing bits **)
+(** FFI **)
 
 type ('a, 'b) c_array = ('a, 'b, Bigarray.c_layout) Array1.t
-
-module Bigstring = struct
-  type t = (char, int8_unsigned_elt) c_array
-  (* These are of the native-endian variety. *)
-  external get_int64 : t -> int -> int64 = "%caml_bigstring_get64"
-  external set_int64 : t -> int -> int64 -> unit = "%caml_bigstring_set64"
-  external get_int32 : t -> int -> int32 = "%caml_bigstring_get32"
-  external set_int32 : t -> int -> int32 -> unit = "%caml_bigstring_set32"
-  let set_uint8 t i v = t.{i} <- Char.unsafe_chr (v land 0xff)
-  let get_uint8 t i = Char.code t.{i}
-  let set_bool t i v = t.{i} <- (if v then '\001' else '\000')
-  let get_bool t i = t.{i} <> '\000'
-  let blit_from_string ?(dst_i = 0) ?(src_i = 0) ?n src dst =
-    let n = match n with Some n -> n | _ -> String.length src - src_i in
-    if Array1.dim dst - dst_i < n || String.length src - src_i < n then
-      invalid_arg "Bigstring.blit_string: too many bytes to blit.";
-    for i = 0 to n - 1 do
-      dst.{dst_i + i} <- src.[src_i + i]
-    done
-  let hex ?w () ppf s = Fmt.hex ?w () ppf (Array1.dim s, Array1.get s)
-end
-
-let (//) a b = (a + b - 1) / b
-
-module Int64 = struct
-  include Int64
-  let (+) = add
-  let (lsr) = shift_right_logical
-  let (lsl) = shift_left
-end
-
-(** FFI **)
 
 external sizes : unit -> int array = "caml_sizes"
 let sizeof___u64, sizeof_int, sizeof_void_p, sizeof_memcache =
@@ -99,9 +68,6 @@ external ioctl_p  : Unix.file_descr -> int -> ('a, 'b) c_array -> int = "caml_pk
 external super_unsafe_ba_mmap : Unix.file_descr -> int -> (char, int8_unsigned_elt) c_array = "caml_super_unsafe_ba_mmap"
 external ba_munmap : (char, int8_unsigned_elt) c_array -> unit = "caml_ba_munmap"
 external bzero : ('a, 'b) c_array -> unit = "caml_ba_bzero"
-
-external _sched_setaffinity : int -> int array -> unit = "caml_sched_setaffinity"
-let sched_setaffinity ?(thread = 0) = _sched_setaffinity thread
 
 (** ioctls **)
 
@@ -312,6 +278,8 @@ let pp_region ppf reg =
   (fun ppf x -> if Lazy.is_val x then Fmt.pf ppf ",@ mapped" else ()) reg.mmap
 
 (** Higher-level ops **)
+
+let (//) a b = (a + b - 1) / b
 
 module Log = (val Logs.(Src.create "Pkvm_proxy" |> src_log))
 

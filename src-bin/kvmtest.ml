@@ -1,4 +1,5 @@
 open Pkvm_proxy
+open Pkvm_proxy_utils
 
 module Log = (val Logs.(Src.create "kvmtest" |> src_log))
 
@@ -6,6 +7,8 @@ let def_regs   = [ 0x37L; 0x1300L; 0xdeadL ]
 let def_pc     = 0x0L
 let def_sp     = 0x0L
 let def_pstate = 0x0L
+
+let page_size = 0x1000
 
 let main ?(protected = false) ?(iters = 1) ~regs ?(addr_code = 0x0L) ?(addr_pg = 0x5000L) () =
 
