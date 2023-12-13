@@ -40,15 +40,6 @@ type _ host_smccc_func =
   | Pkvm_vcpu_put          : unit host_smccc_func
   | Pkvm_vcpu_sync_state   : unit host_smccc_func
 
-type registers = { regs : int64 array; sp : int64; pc : int64; pstate : int64; }
-
-type fault_info = {
-  esr_el2   : int64; (* Hyp Syndrom Register *)
-  far_el2   : int64; (* Hyp Fault Address Register *)
-  hpfar_el2 : int64; (* Hyp IPA Fault Address Register *)
-  disr_el1  : int64; (* Deferred [SError] Status Register *)
-}
-
 (** FFI **)
 
 type ('a, 'b) c_array = ('a, 'b, Bigarray.c_layout) Array1.t
@@ -148,9 +139,6 @@ let free_hyp_memcache ptr = topup_hyp_memcache ptr 0
 
 (** Regions **)
 
-(** A kernel memory region.
-    The type parameter is phantom and reflects the structured data in the region
-    (if any). The parameter is inferred from record-field accesses. **)
 type 'a region = {
   size  : int;
   fd    : Unix.file_descr;
@@ -160,10 +148,33 @@ type 'a region = {
   __xx  : 'a -> unit;  (* GAAAH hammer the phantom 'a out of covariance *)
 }
 
+let region_addr reg = reg.kaddr, reg.phys
 let region_is_mapped reg = Lazy.is_val reg.mmap
 let region_memory { mmap = lazy mmap; _ } = mmap
 
 (** Structure R/W **)
+
+(* Typed accessors to components of kernel-managed structures. *)
+type 'a rd = Bigstring.t -> int -> 'a
+type 'a wr = Bigstring.t -> int -> 'a -> unit
+type ('a, 'b) field = F of int * 'b rd * 'b wr
+
+let ( .@[] ) (type a) (rg : a region) (F (off, r, _) : (a, _) field) = r (Lazy.force rg.mmap) off
+let ( .@[]<- ) (type a) (rg : a region) (F (off, _, w) : (a, _) field) v = w (Lazy.force rg.mmap) off v
+
+(* memcache is represented by a (bigarray-wrapped) pointer; offset computation
+   corresponds to extracting the array slice. *)
+type memcache = Bigstring.t
+let read_memcache s i = Array1.sub s i sizeof_memcache
+
+type registers = { regs : int64 array; sp : int64; pc : int64; pstate : int64; }
+
+type fault_info = {
+  esr_el2   : int64; (* Hyp Syndrom Register *)
+  far_el2   : int64; (* Hyp Fault Address Register *)
+  hpfar_el2 : int64; (* Hyp IPA Fault Address Register *)
+  disr_el1  : int64; (* Deferred [SError] Status Register *)
+}
 
 let (@+) a i = a + i * sizeof___u64
 
@@ -188,15 +199,6 @@ let read_fault_info s i =
     hpfar_el2 = get_int64 s (i @+ 2);
     disr_el1  = get_int64 s (i @+ 3); }
 
-(* memcache is represented by a (bigarray-wrapped) pointer; offset computation
-   corresponds to extracting the array slice. *)
-let read_memcache s i = Array1.sub s i sizeof_memcache
-
-(* Typed accessors to components of kernel-managed structures. *)
-type 'a rd = Bigstring.t -> int -> 'a
-type 'a wr = Bigstring.t -> int -> 'a -> unit
-type ('a, 'b) field = F of int * 'b rd * 'b wr
-
 let not_implemented _ = failwith "structure field conversion not implemented"
 let f_int64 = Bigstring.(get_int64, set_int64)
 let f_int32 = Bigstring.(get_int32, set_int32)
@@ -205,6 +207,7 @@ let f_bool  = Bigstring.(get_bool, set_bool)
 let f_not_implemented: unit rd * unit wr = not_implemented, not_implemented
 
 type struct_kvm
+
 let struct_kvm enum (r, w) : (struct_kvm, _) field =
   F (struct_kvm_get_offset enum, r, w)
 let nr_mem_slot_pages     = struct_kvm 0 f_int64
@@ -215,6 +218,7 @@ let arch_pkvm_enabled     = struct_kvm 4 f_bool
 let arch_pkvm_teardown_mc = struct_kvm 5 (read_memcache, not_implemented)
 
 type struct_kvm_vcpu
+
 let struct_kvm_vcpu enum (r, w) : (struct_kvm_vcpu, _) field =
   F (struct_kvm_vcpu_get_offset enum, r, w)
 let vcpu_id       = struct_kvm_vcpu 0 f_int32
@@ -227,9 +231,6 @@ let vcpu_fault    = struct_kvm_vcpu 6 (read_fault_info, not_implemented)
 let vcpu_regs     = struct_kvm_vcpu 7 (read_regs, write_regs)
 let vcpu_fp_regs  = struct_kvm_vcpu 8 f_not_implemented
 let vcpu_memcache = struct_kvm_vcpu 9 (read_memcache, not_implemented)
-
-let ( .@[] ) (type a) (rg : a region) (F (off, r, _) : (a, _) field) = r (Lazy.force rg.mmap) off
-let ( .@[]<- ) (type a) (rg : a region) (F (off, _, w) : (a, _) field) v = w (Lazy.force rg.mmap) off v
 
 (* Printers *)
 
@@ -317,6 +318,8 @@ let kernel_region_reclaim reg =
 
 let num_vcpu = 1
 let max_num_cpu = 16
+
+type handle = int
 
 let init_vm ?(protected = false) () =
   let host_kvm = kernel_region_alloc struct_kvm_size

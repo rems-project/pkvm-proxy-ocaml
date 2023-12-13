@@ -1,3 +1,5 @@
+(env (dev (flags (:standard -w -37)))) ; unused constructors
+
 (library
   (name pkvm_proxy)
   (public_name pkvm-proxy)
