@@ -1,3 +1,4 @@
+open Pkvm_proxy_utils
 
 (** {1 Hypercalls} *)
 
@@ -72,7 +73,7 @@ val region_is_mapped : 'a region -> bool
 
 (** {2 Region lifecycle} *)
 
-val region_memory : 'a region -> Pkvm_proxy_utils.Bigstring.t
+val region_memory : 'a region -> bigstring
 (** Let's [mmap] it after all. (Idempotent.)
 
     {b WARNING} If the memory was also given to the hypervisor, (before or after
@@ -161,19 +162,33 @@ val vcpu_memcache : (struct_kvm_vcpu, memcache) field
 
     All implemented in terms of the above. *)
 
-type handle
+val map_region_guest : struct_kvm_vcpu region -> 'a region -> int64 -> unit
+(** Maps a region into the guest.
+
+    {b Warning} Must be invoked in a [vcpu-load]...[vcpu-put] block. *)
+
+type vm = { handle : int; mem : struct_kvm region }
 (** A guest. *)
 
-val init_vm : ?protected:bool -> unit -> struct_kvm region * handle
-val teardown_vm : handle -> struct_kvm region -> unit
-val init_vcpu : handle -> int ->  struct_kvm_vcpu region
+type vcpu = { idx : int; mem : struct_kvm_vcpu region; vm : vm }
+(** A VCPU *)
 
-val vcpu_set_dirty : struct_kvm_vcpu region -> unit
-val vcpu_load : handle -> int -> unit
-val vcpu_run : struct_kvm_vcpu region -> int
+val init_vm : ?protected:bool -> unit -> vm
+val teardown_vm : vm -> unit
+
+val init_vcpu : vm -> int ->  vcpu
+val teardown_vcpu : vcpu -> unit
+
+val vcpu_load : vcpu -> unit
 val vcpu_put : unit -> unit
+
+val vcpu_set_dirty : vcpu -> unit
+val vcpu_run : vcpu -> int
 val vcpu_sync_state : unit -> unit
-val map_region_guest : struct_kvm_vcpu region -> 'a region -> int64 -> unit
 
 val topup_hyp_memcache : memcache -> int -> unit
 val free_hyp_memcache : memcache -> unit
+val topup_vcpu_memcache : vcpu -> int -> unit
+
+val set_vcpu_regs : vcpu -> registers -> unit
+val get_vcpu_regs : vcpu -> registers

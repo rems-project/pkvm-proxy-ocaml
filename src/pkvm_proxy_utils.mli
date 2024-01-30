@@ -21,6 +21,8 @@ module Bigstring : sig
   val hex : ?w:int -> unit -> t Fmt.t
 end
 
+type bigstring = Bigstring.t
+
 (** Because having standard naming for standard operations was just too much. *)
 module Int64 : sig
   include module type of Int64
@@ -28,6 +30,15 @@ module Int64 : sig
   val (asr) : int64 -> int -> int64
   val (lsr) : int64 -> int -> int64
   val (lsl) : int64 -> int -> int64
+  val (land) : int64 -> int64 -> int64
+  val (lor) : int64 -> int64 -> int64
 end
 
 val sched_setaffinity : ?thread:int -> int array -> unit
+
+(**/**)
+
+val log : (module Logs.LOG)
+(** Log source for the library. *)
+
+(**/**)

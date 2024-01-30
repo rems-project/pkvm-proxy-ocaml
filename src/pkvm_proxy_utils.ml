@@ -1,6 +1,7 @@
-open Bigarray
+let log = Logs.(Src.create "Pkvm_proxy" |> src_log)
 
 module Bigstring = struct
+  open Bigarray
   type t = (char, int8_unsigned_elt, c_layout) Array1.t
   (* These are of the native-endian variety. *)
   external get_int64 : t -> int -> int64 = "%caml_bigstring_get64"
@@ -21,6 +22,7 @@ module Bigstring = struct
     done
   let hex ?w () ppf s = Fmt.hex ?w () ppf (Array1.dim s, Array1.get s)
 end
+type bigstring = Bigstring.t
 
 module Int64 = struct
   include Int64
@@ -28,6 +30,8 @@ module Int64 = struct
   let (asr) = shift_right
   let (lsr) = shift_right_logical
   let (lsl) = shift_left
+  let (land) = logand
+  let (lor) = logor
 end
 
 external _sched_setaffinity : int -> int array -> unit = "caml_sched_setaffinity"

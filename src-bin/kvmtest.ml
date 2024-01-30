@@ -30,47 +30,42 @@ let main ?(protected = false) ?(iters = 1) ~regs ?(addr_code = 0x0L) ?(addr_pg =
   Log.app (fun k ->
     k "START @[<v>protected: %b@ iters: %n@ \
        code at: 0x%Lx@ page at: 0x%Lx@ regs: %a@]"
-    protected iters addr_code addr_pg pp_regs regs) ;
+    protected iters addr_code addr_pg pp_regs regs);
 
   sched_setaffinity [|0|]; (* vcpu_load .. vcpu_put *)
 
-  let vm, handle = init_vm ~protected () in
+  let vm = init_vm ~protected () in
 
-  let vcpu = init_vcpu handle 0 in
+  let vcpu = init_vcpu vm 0 in
+  set_vcpu_regs vcpu regs;
+  topup_vcpu_memcache vcpu 10;
 
-  vcpu.@[vcpu_regs] <- regs ;
-  vcpu_set_dirty vcpu;
-
-  topup_hyp_memcache vcpu.@[vcpu_memcache] 10;
-
-  vcpu_load handle 0;
+  vcpu_load vcpu;
 
   let gcode = kernel_region_alloc page_size in
   Bigstring.blit_from_string code (region_memory gcode);
   kernel_region_release gcode;
-
-  map_region_guest vcpu gcode addr_code;
+  map_region_guest vcpu.mem gcode addr_code;
 
   let mempg = kernel_region_alloc page_size in
+  (* region_memory mempg |> ignore; *)
   kernel_region_release mempg;
-
-  map_region_guest vcpu mempg addr_pg;
+  map_region_guest vcpu.mem mempg addr_pg;
 
   for _ = 1 to iters do
     let exit_code = vcpu_run vcpu in
     Log.app (fun k -> k "@[<2>Ran VCPU 0,@ exit %d,@ fault %a@]"
-        exit_code pp_fault_info vcpu.@[vcpu_fault])
+        exit_code pp_fault_info vcpu.mem.@[vcpu_fault]);
+    (* Fmt.pr "mem => %a@." (Bigstring.hex ()) (Bigarray.Array1.sub (region_memory mempg) 0 32); *)
+    vcpu_sync_state ();
+    Log.app (fun k -> k "%a" pp_regs vcpu.mem.@[vcpu_regs]);
   done;
-
-  vcpu_sync_state ();
-  Log.app (fun k -> k "%a" pp_regs vcpu.@[vcpu_regs]);
 
   vcpu_put ();
 
-  teardown_vm handle vm;
+  teardown_vm vm;
 
-  kernel_region_unshare_hyp vcpu;
-  kernel_region_free vcpu;
+  teardown_vcpu vcpu;
 
   kernel_region_reclaim gcode;
   kernel_region_free gcode;

@@ -144,7 +144,7 @@ type 'a region = {
   fd    : Unix.file_descr;
   kaddr : int64;
   phys  : int64;
-  mmap  : Bigstring.t Lazy.t;
+  mmap  : bigstring Lazy.t;
   __xx  : 'a -> unit;  (* GAAAH hammer the phantom 'a out of covariance *)
 }
 
@@ -155,8 +155,8 @@ let region_memory { mmap = lazy mmap; _ } = mmap
 (** Structure R/W **)
 
 (* Typed accessors to components of kernel-managed structures. *)
-type 'a rd = Bigstring.t -> int -> 'a
-type 'a wr = Bigstring.t -> int -> 'a -> unit
+type 'a rd = bigstring -> int -> 'a
+type 'a wr = bigstring -> int -> 'a -> unit
 type ('a, 'b) field = F of int * 'b rd * 'b wr
 
 let ( .@[] ) (type a) (rg : a region) (F (off, r, _) : (a, _) field) = r (Lazy.force rg.mmap) off
@@ -164,7 +164,7 @@ let ( .@[]<- ) (type a) (rg : a region) (F (off, _, w) : (a, _) field) v = w (La
 
 (* memcache is represented by a (bigarray-wrapped) pointer; offset computation
    corresponds to extracting the array slice. *)
-type memcache = Bigstring.t
+type memcache = bigstring
 let read_memcache s i = Array1.sub s i sizeof_memcache
 
 type registers = { regs : int64 array; sp : int64; pc : int64; pstate : int64; }
@@ -282,13 +282,14 @@ let pp_region ppf reg =
 
 let (//) a b = (a + b - 1) / b
 
-module Log = (val Logs.(Src.create "Pkvm_proxy" |> src_log))
+module Log = (val log)
 
 let hvc func = Log.info (fun k -> k "hvc %a" pp_host_smccc_func func); hvc func
 
-let page_size  = 4096
+let page_size  = 0x1000
 and page_shift = 12
 
+(* Note — first access to mmaped memory clears it. *)
 let kernel_region_alloc size =
   let fd    = alloc_pages size in
   let kaddr = alloc_kaddr fd
@@ -299,8 +300,12 @@ let kernel_region_alloc size =
   Log.debug (fun k -> k "kernel_region_alloc ->@ %a" pp_region res);
   res
 
-let kernel_region_release reg = alloc_release reg.fd
-let kernel_region_free reg = alloc_free reg.fd
+let kernel_region_release reg =
+  Log.debug (fun k -> k "kernel_region_release %a" pp_region reg);
+  alloc_release reg.fd
+let kernel_region_free reg =
+  Log.debug (fun k -> k "kernel_region_free %a" pp_region reg);
+  alloc_free reg.fd
 
 let for_each_page ?(base = 0L) size f =
   for i = 0 to size // page_size - 1 do
@@ -308,20 +313,33 @@ let for_each_page ?(base = 0L) size f =
   done
 
 let kernel_region_share_hyp reg =
+  Log.debug (fun k -> k "kernel_region_share_hyp %a" pp_region reg);
   for_each_page ~base:reg.phys reg.size @@ fun pg -> hvc (Pkvm_host_share_hyp pg)
 
 let kernel_region_unshare_hyp reg =
+  Log.debug (fun k -> k "kernel_region_unshare_hyp %a" pp_region reg);
   for_each_page ~base:reg.phys reg.size @@ fun pg -> hvc (Pkvm_host_unshare_hyp pg)
 
 let kernel_region_reclaim reg =
+  Log.debug (fun k -> k "kernel_region_reclaim %a" pp_region reg);
   for_each_page ~base:reg.phys reg.size @@ fun pg -> hvc (Pkvm_host_reclaim_page pg)
+
+let map_region_guest host_vcpu reg guest_phys =
+  let open Int64 in
+  let phys  = reg.phys lsr page_shift
+  and gphys = guest_phys lsr page_shift in
+  Log.debug (fun k -> k "map_region_guest %a" pp_region reg);
+  for_each_page reg.size @@ fun pg ->
+    topup_hyp_memcache (host_vcpu.@[vcpu_memcache]) 5;
+    hvc (Pkvm_host_map_guest (phys + pg, gphys + pg))
 
 let num_vcpu = 1
 let max_num_cpu = 16
 
-type handle = int
+type vm = { handle : int; mem : struct_kvm region }
+type vcpu = { idx : int; mem : struct_kvm_vcpu region; vm : vm }
 
-let init_vm ?(protected = false) () =
+let init_vm ?(protected = true) () =
   let host_kvm = kernel_region_alloc struct_kvm_size
   and hyp_kvm  = kernel_region_alloc (hyp_vm_size + num_vcpu * sizeof_void_p)
   and pgd      = kernel_region_alloc pgd_size
@@ -332,19 +350,23 @@ let init_vm ?(protected = false) () =
 
   host_kvm.@[arch_pkvm_enabled] <- protected;
   host_kvm.@[created_vcpus] <- Int32.of_int num_vcpu;
-  let h = hvc (Pkvm_init_vm (host_kvm.kaddr, hyp_kvm.kaddr, pgd.kaddr, last_ran.kaddr)) in
+  let handle = hvc (Pkvm_init_vm (host_kvm.kaddr, hyp_kvm.kaddr, pgd.kaddr, last_ran.kaddr)) in
 
-  Log.debug (fun k -> k "init_vm ->@ %d@ %a" h pp_region host_kvm);
-  host_kvm, h
+  Log.debug (fun k -> k "init_vm ->@ %d@ %a" handle pp_region host_kvm);
+  { handle; mem = host_kvm }
 
-let teardown_vm handle vm =
-  Log.debug (fun k -> k "teardown_vm@ %d@ %a@ ->" handle pp_region vm);
-  hvc (Pkvm_teardown_vm handle);
-  free_hyp_memcache vm.@[arch_pkvm_teardown_mc];
-  kernel_region_unshare_hyp vm;
-  kernel_region_free vm
+let teardown_vm vm =
+  Log.debug (fun k -> k "teardown_vm@ %d@ %a@ ->" vm.handle pp_region vm.mem);
+  hvc (Pkvm_teardown_vm vm.handle);
+  free_hyp_memcache vm.mem.@[arch_pkvm_teardown_mc];
+  kernel_region_unshare_hyp vm.mem;
+  kernel_region_free vm.mem
 
-let init_vcpu handle idx =
+let teardown_vcpu vcpu =
+  kernel_region_unshare_hyp vcpu.mem;
+  kernel_region_free vcpu.mem
+
+let init_vcpu vm idx =
   let host_vcpu = kernel_region_alloc struct_kvm_vcpu_size
   and hyp_vcpu  = kernel_region_alloc (hyp_vcpu_size + num_vcpu * sizeof_void_p) in
 
@@ -353,21 +375,19 @@ let init_vcpu handle idx =
 
   host_vcpu.@[vcpu_idx] <- Int32.of_int idx;
   host_vcpu.@[vcpu_hcr_el2] <- Int64.(1L lsl 31);
-  hvc (Pkvm_init_vcpu (handle, host_vcpu.kaddr, hyp_vcpu.kaddr));
+  hvc (Pkvm_init_vcpu (vm.handle, host_vcpu.kaddr, hyp_vcpu.kaddr));
 
-  Log.debug (fun k -> k "init_vcpu@ %d@ %d@ -> %a" handle idx pp_region host_vcpu);
-  host_vcpu
+  Log.debug (fun k -> k "init_vcpu@ %d@ %d@ -> %a" vm.handle idx pp_region host_vcpu);
+  { idx; mem = host_vcpu; vm }
 
-let vcpu_set_dirty reg = reg.@[vcpu_iflags] <- 0x80
-let vcpu_load handle idx = hvc (Pkvm_vcpu_load (handle, idx, 0L))
-let vcpu_run vcpu = hvc (Kvm_vcpu_run vcpu.kaddr)
+let vcpu_load vcpu = hvc (Pkvm_vcpu_load (vcpu.vm.handle, vcpu.idx, 0L))
 let vcpu_put () = hvc Pkvm_vcpu_put
+let vcpu_set_dirty vcpu = vcpu.mem.@[vcpu_iflags] <- 0x80
+let vcpu_run vcpu = hvc (Kvm_vcpu_run vcpu.mem.kaddr)
 let vcpu_sync_state () = hvc Pkvm_vcpu_sync_state
 
-let map_region_guest vcpu mem gphys =
-  let open Int64 in
-  let phys  = mem.phys lsr page_shift
-  and gphys = gphys lsr page_shift in
-  for_each_page mem.size @@ fun pg ->
-    topup_hyp_memcache (vcpu.@[vcpu_memcache]) 5;
-    hvc (Pkvm_host_map_guest (phys + pg, gphys + pg))
+let topup_vcpu_memcache vcpu = topup_hyp_memcache vcpu.mem.@[vcpu_memcache]
+
+let set_vcpu_regs vcpu regs =
+  vcpu.mem.@[vcpu_regs] <- regs; vcpu_set_dirty vcpu
+let get_vcpu_regs vcpu = vcpu.mem.@[vcpu_regs]
