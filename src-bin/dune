@@ -5,7 +5,7 @@
 
 (executable
   (name pkvm_tests)
-  (modules pkvm_tests)
+  (modules pkvm_tests pkvm_tests_config)
   (libraries pkvm_proxy json logs.fmt fmt.tty cmdliner logs.cli))
 
 (env (release (link_flags (-ccopt -static))))

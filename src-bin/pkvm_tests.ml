@@ -6,7 +6,32 @@ module Log = (val Logs.(Src.create "pkvm_tests" |> src_log))
 let setup_log () =
   Fmt_tty.setup_std_outputs ();
   Logs.set_reporter (Logs_fmt.reporter ());
-  Logs.set_level ~all:true (Some Logs.Debug)
+  Logs.set_level ~all:true (Some Logs.Warning)
+
+let config = "/payload/config.json" 
+
+let pp_name = Fmt.(styled `Bold string)
+let main xs =
+  setup_log ();
+  sched_setaffinity ~thread:0 [|0|];
+  let select = match Pkvm_tests_config.load config with
+  | Ok (ll, select) ->
+      Logs.set_level ~all:true ll;
+      select
+  | Error (`Msg msg) ->
+      Log.warn (fun k -> k "`%s': %s" config msg);
+      fun _ -> true
+  in
+  xs |> List.iter (fun (name, test) ->
+    match select name with
+    | true ->
+        Log.app (fun k -> k "-> start: %a" pp_name name);
+        test ();
+        Log.app (fun k -> k "<- done: %a" pp_name name);
+    | false -> Log.app (fun k -> k "** skip: %a" pp_name name)
+  );
+  Log.app (fun k -> k "all done")
+
 
 (* Vcpu_run can spontaneously interrupt at any point.
  * When this happens, the return (from the underlying ioctl) is 0.
@@ -24,16 +49,6 @@ let rec vcpu_run_expect ?(exit = 2) ?esr ?far ?hpfar ?disr vcpu =
       Log.err (fun k -> k "vcpu run: exit %d, fault: %a" res pp_fault_info f);
       invalid_arg "vcpu_run_expect"
     )
-
-let main xs =
-  setup_log ();
-  sched_setaffinity ~thread:0 [|0|];
-  xs |> List.iter (fun (name, test) ->
-    Log.app (fun k -> k "-> start: %a" Fmt.(styled `Bold string) name);
-    test ();
-    Log.app (fun k -> k "<- done: %a" Fmt.(styled `Bold string) name));
-  Log.app (fun k -> k "all done")
-
 
 let t_region_share () =
   let reg = kernel_region_alloc 0x1000 in
@@ -157,12 +172,12 @@ let t_guest_hvc_mem_unshare () =
 
 let _ = main [
   "kernel share", t_region_share
-; "kernel_share_unshare", t_region_share_unshare
-; "init/deinit_vm", t_init_deinit_vm
-; "init/deinit_vcpu", t_init_deinit_vcpu
-; "load/put_vcpu", t_vcpu_load_put
-; "run_vcpu", t_vcpu_run
-; "guest_hvc_version", t_guest_hvc_version
-; "guest_hvc_mem_share", t_guest_hvc_mem_share
-; "guest_hvc_mem_unshare", t_guest_hvc_mem_unshare
+; "kernel share+unshare", t_region_share_unshare
+; "vm init+deinit", t_init_deinit_vm
+; "vcpu init+deinit", t_init_deinit_vcpu
+; "vcpu load+put", t_vcpu_load_put
+; "vcpu run", t_vcpu_run
+; "guest hvc version", t_guest_hvc_version
+; "guest hvc mem_share", t_guest_hvc_mem_share
+; "guest hvc mem_unshare", t_guest_hvc_mem_unshare
 ]
