@@ -9,4 +9,4 @@
     (language c)
     (names pkvm-proxy)
     (flags (:standard -Wall -Wextra -O3)))
-  (libraries unix bigarray fmt logs))
+  (libraries unix bigarray fmt logs keystone))

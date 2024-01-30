@@ -1,0 +1,3 @@
+[submodule "vendor/keystone-ocaml"]
+	path = vendor/keystone-ocaml
+	url = git@github.com:rems-project/keystone-ocaml.git

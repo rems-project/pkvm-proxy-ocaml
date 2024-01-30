@@ -10,7 +10,22 @@ let def_pstate = 0x0L
 
 let page_size = 0x1000
 
+let code pg = Pkvm_asm.(asm [
+  mov (x 0) 0xfecabebaL;
+  mov (x 1) 0x3713dec0L;
+  mov (x 2) 0xfecabebaL;
+  mov (x 3) 0x3713dec0L;
+
+  hvc 0 VERSION_FUNC_ID;
+  hvc 0 (VENDOR_HYP_KVM_MEM_SHARE_FUNC_ID (pg, 0L, 0L));
+  hvc 0 (VENDOR_HYP_KVM_MEM_UNSHARE_FUNC_ID (pg, 0L, 0L));
+
+  mov (x 26) 0xcaffL; mov (x 27) 0xff00L; str (x 26) (x 27);
+])
+
 let main ?(protected = false) ?(iters = 1) ~regs ?(addr_code = 0x0L) ?(addr_pg = 0x5000L) () =
+
+  let code = code addr_pg in
 
   Log.app (fun k ->
     k "START @[<v>protected: %b@ iters: %n@ \
@@ -31,7 +46,7 @@ let main ?(protected = false) ?(iters = 1) ~regs ?(addr_code = 0x0L) ?(addr_pg =
   vcpu_load handle 0;
 
   let gcode = kernel_region_alloc page_size in
-  Bigstring.blit_from_string Guest.code (region_memory gcode);
+  Bigstring.blit_from_string code (region_memory gcode);
   kernel_region_release gcode;
 
   map_region_guest vcpu gcode addr_code;
