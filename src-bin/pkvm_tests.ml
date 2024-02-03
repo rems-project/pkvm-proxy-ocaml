@@ -84,7 +84,10 @@ let t_vcpu_load_put () =
   teardown_vcpu vcpu
 
 let t_vcpu_run () =
-  let code = Pkvm_asm.(asm [mov (x 30) 0xdeadL; ldr (x 0) (x 30)]) in
+  let code = {%asm|
+    movz x30, 0xdead
+    ldr x0, [x30]
+  |} in
   let vm = init_vm () in
   let vcpu = init_vcpu vm 0 in
   vcpu_load vcpu;
@@ -100,11 +103,12 @@ let t_vcpu_run () =
   kernel_region_free cbuf
 
 let t_guest_hvc_version () =
-  let code = Pkvm_asm.(asm [
-    hvc 0 VERSION_FUNC_ID;
-    mov (x 30) 0xdeadL;
-    ldr (x 0) (x 30)
-  ]) in
+  let code = {%asm|
+    movz w0, 0x8000, lsl 16
+    hvc 0
+    movz x30, 0xdead
+    ldr x0, [x30]
+  |} in
   let vm = init_vm () in
   let vcpu = init_vcpu vm 0 in
   vcpu_load vcpu;
@@ -120,11 +124,14 @@ let t_guest_hvc_version () =
   kernel_region_free cbuf
 
 let t_guest_hvc_mem_share () =
-  let code = Pkvm_asm.(asm [
-    hvc 0 (VENDOR_HYP_KVM_MEM_SHARE_FUNC_ID (0x2000L, 0L, 0L));
-    mov (x 30) 0xdeadL;
-    ldr (x 0) (x 30)
-  ]) in
+  let code = {%asm|
+    movz w0, 0xc600, lsl 16
+    movk w0, 0x0003
+    mov w1, 0x2000
+    hvc 0
+    movz x30, 0xdead
+    ldr x0, [x30]
+  |} in
   let vm = init_vm () in
   let vcpu = init_vcpu vm 0 in
   vcpu_load vcpu;
@@ -146,12 +153,18 @@ let t_guest_hvc_mem_share () =
   kernel_region_free mbuf
 
 let t_guest_hvc_mem_unshare () =
-  let code = Pkvm_asm.(asm [
-    hvc 0 (VENDOR_HYP_KVM_MEM_SHARE_FUNC_ID (0x2000L, 0L, 0L));
-    hvc 0 (VENDOR_HYP_KVM_MEM_UNSHARE_FUNC_ID (0x2000L, 0L, 0L));
-    mov (x 30) 0xdeadL;
-    ldr (x 0) (x 30)
-  ]) in
+  let code = {%asm|
+    movz w0, 0xc600, lsl 16
+    movk w0, 0x0003
+    mov w1, 0x2000
+    hvc 0
+    movz w0, 0xc600, lsl 16
+    movk w0, 0x0004
+    mov w1, 0x2000
+    hvc 0
+    movz x30, 0xdead
+    ldr x0, [x30]
+  |} in
   let vm = init_vm () in
   let vcpu = init_vcpu vm 0 in
   vcpu_load vcpu;

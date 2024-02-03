@@ -1,11 +1,19 @@
 (executable
   (name pkvm_tool)
   (modules pkvm_tool)
+  (preprocess
+    (pps ppx_asm --
+         ; --with-as=aarch64-linux-gnu-as --with-objcopy=aarch64-linux-gnu-objcopy
+         ))
   (libraries pkvm_proxy json logs.fmt fmt.tty cmdliner logs.cli))
 
 (executable
   (name pkvm_tests)
   (modules pkvm_tests pkvm_tests_config)
+  (preprocess
+    (pps ppx_asm --
+         ; --with-as=aarch64-linux-gnu-as --with-objcopy=aarch64-linux-gnu-objcopy
+         ))
   (libraries pkvm_proxy json logs.fmt fmt.tty cmdliner logs.cli))
 
 (env (release (link_flags (-ccopt -static))))

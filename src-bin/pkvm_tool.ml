@@ -10,18 +10,20 @@ let def_pstate = 0x0L
 
 let page_size = 0x1000
 
-let code pg = Pkvm_asm.(asm [
-  mov (x 0) 0xfecabebaL;
-  mov (x 1) 0x3713dec0L;
-  mov (x 2) 0xfecabebaL;
-  mov (x 3) 0x3713dec0L;
+let code _ = {%asm|
+  movz w0, 0x8000, lsl 16
+  hvc 0
 
-  hvc 0 VERSION_FUNC_ID;
-  hvc 0 (VENDOR_HYP_KVM_MEM_SHARE_FUNC_ID (pg, 0L, 0L));
-  hvc 0 (VENDOR_HYP_KVM_MEM_UNSHARE_FUNC_ID (pg, 0L, 0L));
+  movz w0, 0xc600, lsl 16
+  movk w0, 0x0003
+  mov w1, 0x5000
+  hvc 0
 
-  mov (x 26) 0xcaffL; mov (x 27) 0xff00L; str (x 26) (x 27);
-])
+  movz w0, 0xc600, lsl 16
+  movk w0, 0x0004
+  mov w1, 0x5000
+  hvc 0
+|}
 
 let main ?(protected = false) ?(iters = 1) ~regs ?(addr_code = 0x0L) ?(addr_pg = 0x5000L) () =
 
