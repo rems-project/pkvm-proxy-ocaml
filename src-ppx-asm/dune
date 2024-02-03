@@ -1,0 +1,5 @@
+(library
+  (public_name ppx-asm)
+  (name ppx_asm)
+  (kind ppx_rewriter)
+  (libraries unix str fmt ppxlib))
