@@ -3,6 +3,7 @@ opam-version: "2.0"
 synopsis: "Inline ASM fragments"
 description: "Enables quoted assembly, like {%asm| ASM HERE |}"
 maintainer: ["dk505@cl.cam.ac.uk"]
+authors: ["dk505@cl.cam.ac.uk"]
 homepage: "https://github.com/rems-project/pkvm-proxy-ocaml"
 bug-reports: "https://github.com/rems-project/pkvm-proxy-ocaml/issues"
 depends: [

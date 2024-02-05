@@ -3,6 +3,7 @@
 (generate_opam_files)
 
 (source (github rems-project/pkvm-proxy-ocaml))
+(authors "dk505@cl.cam.ac.uk")
 (maintainers "dk505@cl.cam.ac.uk")
 
 (package
