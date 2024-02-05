@@ -8,7 +8,7 @@ let setup_log () =
   Logs.set_reporter (Logs_fmt.reporter ());
   Logs.set_level ~all:true (Some Logs.Warning)
 
-let config = "/payload/config.json" 
+let config = Fmt.str "/payload/%s.json" Sys.argv.(0)
 
 let pp_name = Fmt.(styled `Bold string)
 let main xs =

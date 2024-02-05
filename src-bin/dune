@@ -9,4 +9,9 @@
          ))
   (libraries pkvm_proxy json logs.fmt fmt.tty))
 
+(install
+  (package pkvm-proxy)
+  (files pkvm-test.json)
+  (section share_root))
+
 (env (release (link_flags (-ccopt -static))))
