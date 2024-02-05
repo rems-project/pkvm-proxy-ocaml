@@ -22,9 +22,9 @@ While developing (for instance, on the host), it is enough to rebuild with
 `dune build --profile=release`. This ensures, among other things, that the
 executables are statically compiled.
 
-The build produces executables named `_build/default/src-bin/*.exe`. These are
-the stand-alone tests, and can be used on a (real or virtual) aarch64 system
-patched with pkvm-proxy.
+The build produces executables in `_build/install/default/bin`. These are the
+stand-alone tests, and can be used on a (real or virtual) aarch64 system patched
+with pkvm-proxy.
 
 ## Development ##
 

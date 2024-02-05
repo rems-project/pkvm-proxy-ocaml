@@ -14,7 +14,7 @@ let pp_name = Fmt.(styled `Bold string)
 let main xs =
   setup_log ();
   sched_setaffinity ~thread:0 [|0|];
-  let select = match Pkvm_tests_config.load config with
+  let select = match Pkvm_test_config.load config with
   | Ok (ll, select) ->
       Logs.set_level ~all:true ll;
       select

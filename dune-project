@@ -7,7 +7,7 @@
 
 (package
  (name pkvm-proxy)
- (synopsis "Issue pKVM hypercalls using pkvm-proxy")
+ (synopsis "Library to issue pKVM hypercalls using pkvm-proxy")
  (description "Break VMs.")
  (depends
   (fmt (>= 0.9.0))
@@ -16,7 +16,7 @@
 (package
  (name ppx-asm)
  (synopsis "Inline ASM fragments")
- (description "Enable quoted assembly, like {%asm| ASM HERE |}")
+ (description "Enables quoted assembly, like {%asm| ASM HERE |}")
  (depends
   (fmt (>= 0.9.0))
   (ppxlib (>= 0.31.0))))

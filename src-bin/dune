@@ -1,10 +1,12 @@
 (executable
-  (name pkvm_tests)
-  (modules pkvm_tests pkvm_tests_config)
+  (name pkvm_test)
+  (public_name pkvm-test)
+  (package pkvm-proxy)
+  (modules pkvm_test pkvm_test_config)
   (preprocess
     (pps ppx_asm --
          ; --with-as=aarch64-linux-gnu-as --with-objcopy=aarch64-linux-gnu-objcopy
          ))
-  (libraries pkvm_proxy json logs.fmt fmt.tty logs.cli))
+  (libraries pkvm_proxy json logs.fmt fmt.tty))
 
 (env (release (link_flags (-ccopt -static))))
