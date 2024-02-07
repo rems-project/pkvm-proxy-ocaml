@@ -33,26 +33,6 @@ let main xs =
   Log.app (fun k -> k "all done")
 
 
-(* Vcpu_run can spontaneously interrupt at any point.
- * When this happens, the return (from the underlying ioctl) is 0.
- *)
-let rec vcpu_run_expect ?(exit = 2) ?esr ?far ?hpfar ?disr vcpu =
-  let check a = function Some x -> x = a | _ -> true in
-  let pp_x lbl ppf = function Some a -> Fmt.pf ppf "%s 0x%Lx" lbl a | _ -> () in
-  match Pkvm_proxy.vcpu_run vcpu with
-  | 0 -> vcpu_run_expect ~exit ?esr ?far ?hpfar ?disr vcpu
-  | res ->
-    let f = vcpu.mem.@[vcpu_fault] in
-    let ok =
-      res = exit && check f.esr_el2 esr && check f.far_el2 far &&
-      check f.hpfar_el2 hpfar && check f.disr_el1 disr in
-    if not ok then (
-      Log.err (fun k ->
-        k "@[vcpu_run:@ exit %d (expect %d)@ fault %a@ expect %a, %a, %a, %a"
-        res exit pp_fault_info f
-        (pp_x "esr") esr (pp_x "far") far (pp_x "hpfar") hpfar (pp_x "disr") disr);
-      invalid_arg "vcpu_run_expect")
-
 let t_region_share () =
   let reg = kernel_region_alloc 0x1000 in
   kernel_region_release reg;

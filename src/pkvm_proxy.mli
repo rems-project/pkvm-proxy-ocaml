@@ -192,3 +192,8 @@ val topup_vcpu_memcache : vcpu -> int -> unit
 
 val set_vcpu_regs : vcpu -> registers -> unit
 val get_vcpu_regs : vcpu -> registers
+
+val vcpu_run_expect : ?exit:int -> ?esr:int64 -> ?far:int64 -> ?hpfar:int64 -> ?disr:int64 -> vcpu -> unit
+(* Steps {{!vcpu_run}} until it returns something other than 0.
+   Checks any of the optional exit conditions (the exit code and 4 registers)
+   that were supplied. Raises in case of mismatch. *)

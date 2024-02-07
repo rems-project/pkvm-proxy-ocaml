@@ -391,3 +391,28 @@ let topup_vcpu_memcache vcpu = topup_hyp_memcache vcpu.mem.@[vcpu_memcache]
 let set_vcpu_regs vcpu regs =
   vcpu.mem.@[vcpu_regs] <- regs; vcpu_set_dirty vcpu
 let get_vcpu_regs vcpu = vcpu.mem.@[vcpu_regs]
+
+let pp_expect ppf (exit, esr, far, hpfar, disr) =
+  let f name pp = function
+  | Some v -> [fun ppf () -> Fmt.pf ppf "%s: %a" name pp v]
+  | _ -> [] in
+  Fmt.(list ~sep:comma (fun ppf f -> f ppf ())) ppf
+  Fmt.( f "exit"  int (Some exit)
+      @ f "esr"   int64 esr   @ f "far"   int64 far
+      @ f "hpfar" int64 hpfar @ f "disr"  int64 disr )
+let check x a = match x with Some b -> a = b | _ -> true
+
+let rec vcpu_run_expect ?(exit = 2) ?esr ?far ?hpfar ?disr vcpu =
+  match vcpu_run vcpu with
+  | 0 -> vcpu_run_expect ~exit ?esr ?far ?hpfar ?disr vcpu
+  | res ->
+    let f = vcpu.mem.@[vcpu_fault] in
+    let ok = res = exit &&
+      check esr f.esr_el2 && check far f.far_el2 &&
+      check hpfar f.hpfar_el2 && check disr f.disr_el1 in
+    if not ok then (
+      Log.err (fun k ->
+        k "@[vcpu_run:@ exit %d (expect %d)@ fault %a@ expect %a"
+          res exit pp_fault_info f pp_expect (exit, esr, far, hpfar, disr));
+      invalid_arg "vcpu_run_expect"
+    )
