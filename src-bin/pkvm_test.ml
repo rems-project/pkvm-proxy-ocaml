@@ -10,25 +10,28 @@ let setup_log () =
 
 let config = Fmt.str "/payload/%s.json" Sys.argv.(0)
 
-let pp_name = Fmt.(styled `Bold string)
+let pp_tag = Fmt.(styled `Bold @@ styled `Green @@ styled `Italic string)
+
 let main xs =
   setup_log ();
   sched_setaffinity ~thread:0 [|0|];
   let select = match Pkvm_test_config.load config with
-  | Ok (ll, select) ->
+  | Ok (ll, f) ->
       Logs.set_level ~all:true ll;
-      select
+      f
   | Error (`Msg msg) ->
       Log.warn (fun k -> k "`%s': %s" config msg);
       fun _ -> true
   in
-  xs |> List.iter (fun (name, test) ->
+  xs |> List.iteri (fun i (name, test) ->
     match select name with
     | true ->
-        Log.app (fun k -> k "-> start: %a" pp_name name);
+        Log.app (fun k -> k "@.╭────────────────────@.│ start (#%d): %a@." i pp_tag name);
         test ();
-        Log.app (fun k -> k "<- done: %a" pp_name name);
-    | false -> Log.app (fun k -> k "** skip: %a" pp_name name)
+        Log.app (fun k -> k "@.│ ok: %a@.╰────────────────────@." pp_tag name);
+
+    | false ->
+        Log.app (fun k -> k "@.== skip: %a@." pp_tag name)
   );
   Log.app (fun k -> k "all done")
 
