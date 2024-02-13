@@ -38,7 +38,11 @@ val sched_setaffinity : ?thread:int -> int array -> unit
 
 (**/**)
 
-val log : (module Logs.LOG)
+val log : Logs.src
 (** Log source for the library. *)
+
+type log_cfg
+val setup_early_log : unit -> log_cfg
+val reset_early_log : log_cfg -> unit
 
 (**/**)

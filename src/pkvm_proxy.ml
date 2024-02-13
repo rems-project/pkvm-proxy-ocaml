@@ -1,7 +1,18 @@
 open Bigarray
 open Pkvm_proxy_utils
 
-let pkvm = Unix.(openfile "/sys/kernel/debug/pkvm_proxy" [O_RDWR] 0)
+module Log = (val Logs.src_log log)
+let log_cfg = setup_early_log ()
+
+let pkvm =
+  let open Unix in
+  try openfile "/sys/kernel/debug/pkvm_proxy" [O_RDWR] 0 with 
+  | Unix_error(ENOENT, _, _) ->
+      Log.err (fun k -> k "Cannot find pkvm proxy — is the kernel patched?");
+      exit 1
+  | Unix_error(EACCES, _, _) ->
+      Log.err (fun k -> k "Cannot open pkvm proxy — we need to run as root!");
+      exit 1
 
 (** Hyp-proxy types **)
 
@@ -282,8 +293,6 @@ let pp_region ppf reg =
 
 let (//) a b = (a + b - 1) / b
 
-module Log = (val log)
-
 let hvc func = Log.info (fun k -> k "hvc %a" pp_host_smccc_func func); hvc func
 
 let page_size  = 0x1000
@@ -416,3 +425,5 @@ let rec vcpu_run_expect ?(exit = 2) ?esr ?far ?hpfar ?disr vcpu =
           res exit pp_fault_info f pp_expect (exit, esr, far, hpfar, disr));
       invalid_arg "vcpu_run_expect"
     )
+
+let _ = reset_early_log log_cfg

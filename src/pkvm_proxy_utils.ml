@@ -1,4 +1,14 @@
-let log = Logs.(Src.create "Pkvm_proxy" |> src_log)
+let log = Logs.Src.create "Pkvm_proxy"
+
+type log_cfg = Logs.reporter
+
+let setup_early_log () =
+  let r = Logs.reporter () in
+  Fmt_tty.setup_std_outputs ();
+  Logs.set_reporter (Logs_fmt.reporter ());
+  r
+
+let reset_early_log = Logs.set_reporter
 
 module Bigstring = struct
   open Bigarray
