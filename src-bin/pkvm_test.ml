@@ -35,6 +35,13 @@ let main xs =
   );
   Log.app (fun k -> k "all done")
 
+let fault_at_0xdead =
+  Cond.(exit_is 2 &&& fault (fun f ->
+    f.esr_el2 = 0x93c08007L && f.hpfar_el2 = 0xd0L && f.far_el2 = 0xeadL))
+
+let trap_on_hypercall =
+  Cond.(exit_is 2 &&& fault (fun f ->
+    f.esr_el2 = 0x5a000000L && f.hpfar_el2 = 0L && f.far_el2 = 0L))
 
 let t_region_share () =
   let reg = kernel_region_alloc 0x1000 in
@@ -78,7 +85,7 @@ let t_vcpu_run () =
   kernel_region_release cbuf;
   Bigstring.blit_from_string code (region_memory cbuf);
   map_region_guest vcpu.mem cbuf 0x0L;
-  vcpu_run_expect vcpu ~esr:0x93c08007L ~hpfar:0xd0L ~far:0xeadL;
+  vcpu_run_expect vcpu ~cond:fault_at_0xdead;
   vcpu_put ();
   teardown_vm vm;
   teardown_vcpu vcpu;
@@ -99,7 +106,7 @@ let t_guest_hvc_version () =
   kernel_region_release cbuf;
   Bigstring.blit_from_string code (region_memory cbuf);
   map_region_guest vcpu.mem cbuf 0x0L;
-  vcpu_run_expect vcpu ~esr:0x93c08007L ~hpfar:0xd0L ~far:0xeadL;
+  vcpu_run_expect vcpu ~cond:fault_at_0xdead;
   vcpu_put ();
   teardown_vm vm;
   teardown_vcpu vcpu;
@@ -125,8 +132,8 @@ let t_guest_hvc_mem_share () =
   let mbuf = kernel_region_alloc 0x1000 in
   kernel_region_release mbuf;
   map_region_guest vcpu.mem mbuf 0x2000L;
-  vcpu_run_expect vcpu ~esr:0x5a000000L ~hpfar:0x0L ~far:0x0L;
-  vcpu_run_expect vcpu ~esr:0x93c08007L ~hpfar:0xd0L ~far:0xeadL;
+  vcpu_run_expect vcpu ~cond:trap_on_hypercall;
+  vcpu_run_expect vcpu ~cond:fault_at_0xdead;
   vcpu_put ();
   teardown_vm vm;
   teardown_vcpu vcpu;
@@ -158,9 +165,9 @@ let t_guest_hvc_mem_unshare () =
   let mbuf = kernel_region_alloc 0x1000 in
   kernel_region_release mbuf;
   map_region_guest vcpu.mem mbuf 0x2000L;
-  vcpu_run_expect vcpu ~esr:0x5a000000L ~hpfar:0x0L ~far:0x0L;
-  vcpu_run_expect vcpu ~esr:0x5a000000L ~hpfar:0x0L ~far:0x0L;
-  vcpu_run_expect vcpu ~esr:0x93c08007L ~hpfar:0xd0L ~far:0xeadL;
+  vcpu_run_expect vcpu ~cond:trap_on_hypercall;
+  vcpu_run_expect vcpu ~cond:trap_on_hypercall;
+  vcpu_run_expect vcpu ~cond:fault_at_0xdead;
   vcpu_put ();
   teardown_vm vm;
   teardown_vcpu vcpu;
