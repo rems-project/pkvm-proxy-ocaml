@@ -3,10 +3,9 @@
   (public_name pkvm-test)
   (package pkvm-proxy)
   (modules pkvm_test pkvm_test_config)
-  (preprocess
-    (pps ppx_asm --
-         ; --with-as=aarch64-linux-gnu-as --with-objcopy=aarch64-linux-gnu-objcopy
-         ))
+  (preprocess (pps ppx_asm
+                   ; -- --with-tc-prefix=aarch64-linux-gnu-
+                   ))
   (libraries pkvm_proxy json logs.fmt fmt.tty))
 
 (install

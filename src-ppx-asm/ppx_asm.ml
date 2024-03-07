@@ -23,7 +23,7 @@ let readfile fn =
  
 let error_fmt fmt = Fmt.kstr (fun s -> Error s) fmt
 
-let assemble ?(gas = "as") ?(objcopy = "objcopy") prg =
+let assemble ~gas ~objcopy prg =
   let f_elf, f_err, f_obj = mktemp (), mktemp (), mktemp () in
   let finally () = rm f_elf; rm f_err; rm f_obj in
   Fun.protect ~finally @@ fun () ->
@@ -40,11 +40,13 @@ let assemble ?(gas = "as") ?(objcopy = "objcopy") prg =
         let err = Str.(global_replace (regexp_string "{standard input}:") "" err) in
         error_fmt "%s:\n%s" gas err
 
-let gas = ref None and objcopy = ref None
+let prefix = ref ""
 
 let expand ~ctxt prg =
   let loc = Expansion_context.Extension.extension_point_loc ctxt in
-  match assemble ?gas:!gas ?objcopy:!objcopy prg with
+  let gas     = !prefix ^ "as"
+  and objcopy = !prefix ^ "objcopy" in
+  match assemble ~gas ~objcopy prg with
   | Ok bin -> Ast_builder.Default.estring ~loc bin
   | Error msg -> Location.error_extensionf ~loc "%s" msg
                   |> Ast_builder.Default.pexp_extension ~loc
@@ -56,9 +58,7 @@ let ext =
     expand
 
 let () =
-  Driver.add_arg "--with-as" Arg.(String (fun x -> gas := Some x))
-    ~doc:"<command> Assembler for [%asm] extension nodes";
-  Driver.add_arg "--with-objcopy" Arg.(String (fun x -> objcopy := Some x))
-    ~doc:"<command> Objcopy for [%asm] extension nodes";
+  Driver.add_arg "--with-tc-prefix" (Arg.String (fun x -> prefix := x))
+    ~doc:"<command-prefix> (Cross-) toolchain prefix for [%asm] extension nodes";
   Driver.register_transformation "ppx_asm"
     ~rules:[Ppxlib.Context_free.Rule.extension ext]
