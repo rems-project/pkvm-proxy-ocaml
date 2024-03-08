@@ -49,6 +49,5 @@ module Int64 = struct
   let (lor) = logor
 end
 
-external _sched_setaffinity : int -> int array -> unit = "caml_sched_setaffinity"
-let sched_setaffinity ?(thread = 0) = _sched_setaffinity thread
-
+external sched_setaffinity : thread:int -> int array -> unit = "caml_sched_setaffinity"
+external sched_getaffinity : thread:int -> int array = "caml_sched_getaffinity"
