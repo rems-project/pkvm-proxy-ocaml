@@ -30,6 +30,11 @@ module Bigstring = struct
     for i = 0 to n - 1 do
       dst.{dst_i + i} <- src.[src_i + i]
     done
+  let sub_string ?(i = 0) ?n src =
+    let n = match n with Some n -> n | _ -> Array1.dim src - i in
+    if Array1.dim src - i < n then
+      invalid_arg "Bigstring.sub_string: too many bytes to read.";
+    String.init n (fun j -> src.{i + j})
   let hex ?w () ppf s = Fmt.hex ?w () ppf (Array1.dim s, Array1.get s)
 end
 type bigstring = Bigstring.t

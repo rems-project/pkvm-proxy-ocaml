@@ -18,6 +18,7 @@ module Bigstring : sig
   val set_bool  : t -> int -> bool -> unit
   val get_bool  : t -> int -> bool
   val blit_from_string : ?dst_i:int -> ?src_i:int -> ?n:int -> string -> t -> unit
+  val sub_string : ?i:int -> ?n:int -> t -> string
   val hex : ?w:int -> unit -> t Fmt.t
 end
 

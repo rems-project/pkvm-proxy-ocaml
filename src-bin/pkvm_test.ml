@@ -81,6 +81,23 @@ let t_vcpu_load_put () =
   teardown_vm vm;
   teardown_vcpu vcpu
 
+let t_map_unmap () =
+  let vm = init_vm () in
+  let vcpu = init_vcpu vm 0 in
+  vcpu_load vcpu;
+  let cbuf = kernel_region_alloc 0x1000 in
+  kernel_region_release cbuf;
+  Bigstring.blit_from_string "whatever" (region_memory cbuf);
+  assert (Bigstring.sub_string ~n:8 (region_memory cbuf) = "whatever");
+  map_region_guest vcpu.mem cbuf 0x0L;
+  vcpu_put ();
+  teardown_vm vm;
+  teardown_vcpu vcpu;
+  kernel_region_reclaim cbuf;
+  assert (Bigstring.sub_string ~n:8 (region_memory cbuf)
+          = String.init 8 (fun _ -> '\x00'));
+  kernel_region_free cbuf
+
 let t_vcpu_run () =
   let code = {%asm|
     movz x30, 0xdead
@@ -191,6 +208,7 @@ let _ = main [
 ; "vcpu init+deinit", t_init_deinit_vcpu
 ; "vcpu init+deinit poly", t_init_deinit_vcpus
 ; "vcpu load+put", t_vcpu_load_put
+; "guest map+unmap", t_map_unmap
 ; "vcpu run", t_vcpu_run
 ; "guest hvc version", t_guest_hvc_version
 ; "guest hvc mem_share", t_guest_hvc_mem_share
