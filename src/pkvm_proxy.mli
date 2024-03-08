@@ -167,13 +167,13 @@ val map_region_guest : struct_kvm_vcpu region -> 'a region -> int64 -> unit
 
     {b Warning} Must be invoked in a [vcpu-load]...[vcpu-put] block. *)
 
-type vm = { handle : int; mem : struct_kvm region }
+type vm = { handle : int; cpus: int; mem : struct_kvm region }
 (** A guest. *)
 
 type vcpu = { idx : int; mem : struct_kvm_vcpu region; vm : vm }
 (** A VCPU *)
 
-val init_vm : ?protected:bool -> unit -> vm
+val init_vm : ?cpus:int -> ?protected:bool -> unit -> vm
 val teardown_vm : vm -> unit
 
 val init_vcpu : vm -> int ->  vcpu

@@ -14,6 +14,8 @@ let pkvm =
       Log.err (fun k -> k "Cannot open pkvm proxy — we need to run as root!");
       exit 1
 
+let _ = reset_early_log log_cfg
+
 (** Hyp-proxy types **)
 
 (** Host hypercalls. `enum __kvm_host_smccc_func`, and their ioctl arguments. **)
@@ -342,27 +344,27 @@ let map_region_guest host_vcpu reg guest_phys =
     topup_hyp_memcache (host_vcpu.@[vcpu_memcache]) 5;
     hvc (Pkvm_host_map_guest (phys + pg, gphys + pg))
 
-let num_vcpu = 1
-let max_num_cpu = 16
+let max_cpus = 16
 
-type vm = { handle : int; mem : struct_kvm region }
+type vm = { handle : int; cpus: int; mem : struct_kvm region }
 type vcpu = { idx : int; mem : struct_kvm_vcpu region; vm : vm }
 
-let init_vm ?(protected = true) () =
+let init_vm ?(cpus = 1) ?(protected = true) () =
+  assert (cpus < max_cpus);
   let host_kvm = kernel_region_alloc struct_kvm_size
-  and hyp_kvm  = kernel_region_alloc (hyp_vm_size + num_vcpu * sizeof_void_p)
+  and hyp_kvm  = kernel_region_alloc (hyp_vm_size + cpus * sizeof_void_p)
   and pgd      = kernel_region_alloc pgd_size
-  and last_ran = kernel_region_alloc (max_num_cpu * sizeof_int) in
+  and last_ran = kernel_region_alloc (max_cpus * sizeof_int) in
 
   List.iter kernel_region_release [host_kvm; hyp_kvm; pgd; last_ran];
   kernel_region_share_hyp host_kvm;
 
   host_kvm.@[arch_pkvm_enabled] <- protected;
-  host_kvm.@[created_vcpus] <- Int32.of_int num_vcpu;
+  host_kvm.@[created_vcpus] <- Int32.of_int cpus;
   let handle = hvc (Pkvm_init_vm (host_kvm.kaddr, hyp_kvm.kaddr, pgd.kaddr, last_ran.kaddr)) in
 
   Log.debug (fun k -> k "init_vm ->@ %d@ %a" handle pp_region host_kvm);
-  { handle; mem = host_kvm }
+  { handle; cpus; mem = host_kvm }
 
 let teardown_vm vm =
   Log.debug (fun k -> k "teardown_vm@ %d@ %a@ ->" vm.handle pp_region vm.mem);
@@ -377,7 +379,7 @@ let teardown_vcpu vcpu =
 
 let init_vcpu vm idx =
   let host_vcpu = kernel_region_alloc struct_kvm_vcpu_size
-  and hyp_vcpu  = kernel_region_alloc (hyp_vcpu_size + num_vcpu * sizeof_void_p) in
+  and hyp_vcpu  = kernel_region_alloc (hyp_vcpu_size + vm.cpus * sizeof_void_p) in
 
   List.iter kernel_region_release [host_vcpu; hyp_vcpu];
   kernel_region_share_hyp host_vcpu;
@@ -436,4 +438,3 @@ let rec vcpu_run_expect ?cond vcpu =
             invalid_arg "vcpu_run_expect")
       | None -> ()
 
-let _ = reset_early_log log_cfg
