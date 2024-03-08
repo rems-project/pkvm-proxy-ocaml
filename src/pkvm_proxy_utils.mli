@@ -38,6 +38,8 @@ end
 external sched_setaffinity : thread:int -> int array -> unit = "caml_sched_setaffinity"
 external sched_getaffinity : thread:int -> int array = "caml_sched_getaffinity"
 
+val locked_reporter : Logs.reporter -> Logs.reporter
+
 (**/**)
 
 val log : Logs.src
