@@ -378,6 +378,7 @@ let teardown_vcpu vcpu =
   kernel_region_free vcpu.mem
 
 let init_vcpu vm idx =
+  if vm.cpus <= idx then Fmt.invalid_arg "init_vcpu: cpu %d (max %d)" idx vm.cpus;
   let host_vcpu = kernel_region_alloc struct_kvm_vcpu_size
   and hyp_vcpu  = kernel_region_alloc (hyp_vcpu_size + vm.cpus * sizeof_void_p) in
 
