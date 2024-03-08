@@ -295,7 +295,11 @@ let pp_region ppf reg =
 
 let (//) a b = (a + b - 1) / b
 
-let hvc func = Log.info (fun k -> k "hvc %a" pp_host_smccc_func func); hvc func
+let hvc func =
+  Log.info (fun k -> k "hvc %a" pp_host_smccc_func func);
+  try hvc func with e ->
+    Log.err (fun k -> k "hvc %a@ ->@ exception@ %s" pp_host_smccc_func func (Printexc.to_string e));
+    raise e
 
 let page_size  = 0x1000
 and page_shift = 12
