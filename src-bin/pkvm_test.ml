@@ -65,6 +65,14 @@ let t_init_deinit_vcpu () =
   teardown_vm vm;
   teardown_vcpu vcpu
 
+let t_init_deinit_vcpus () =
+  let vm = init_vm ~cpus:2 () in
+  let vcpu1 = init_vcpu vm 0
+  and vcpu2 = init_vcpu vm 1 in
+  teardown_vm vm;
+  teardown_vcpu vcpu1;
+  teardown_vcpu vcpu2
+
 let t_vcpu_load_put () =
   let vm = init_vm () in
   let vcpu = init_vcpu vm 0 in
@@ -181,6 +189,7 @@ let _ = main [
 ; "kernel share+unshare", t_region_share_unshare
 ; "vm init+deinit", t_init_deinit_vm
 ; "vcpu init+deinit", t_init_deinit_vcpu
+; "vcpu init+deinit poly", t_init_deinit_vcpus
 ; "vcpu load+put", t_vcpu_load_put
 ; "vcpu run", t_vcpu_run
 ; "guest hvc version", t_guest_hvc_version
