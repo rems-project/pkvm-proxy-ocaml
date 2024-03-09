@@ -348,27 +348,27 @@ let map_region_guest host_vcpu reg guest_phys =
     topup_hyp_memcache (host_vcpu.@[vcpu_memcache]) 5;
     hvc (Pkvm_host_map_guest (phys + pg, gphys + pg))
 
-let max_cpus = 16
+let max_vm_vcpus = 16
 
-type vm = { handle : int; cpus: int; mem : struct_kvm region }
+type vm = { handle : int; vcpus: int; mem : struct_kvm region }
 type vcpu = { idx : int; mem : struct_kvm_vcpu region; vm : vm }
 
-let init_vm ?(cpus = 1) ?(protected = true) () =
-  assert (cpus < max_cpus);
+let init_vm ?(vcpus = 1) ?(protected = true) () =
+  assert (vcpus < max_vm_vcpus);
   let host_kvm = kernel_region_alloc struct_kvm_size
-  and hyp_kvm  = kernel_region_alloc (hyp_vm_size + cpus * sizeof_void_p)
+  and hyp_kvm  = kernel_region_alloc (hyp_vm_size + vcpus * sizeof_void_p)
   and pgd      = kernel_region_alloc pgd_size
-  and last_ran = kernel_region_alloc (max_cpus * sizeof_int) in
+  and last_ran = kernel_region_alloc (max_vm_vcpus * sizeof_int) in
 
   List.iter kernel_region_release [host_kvm; hyp_kvm; pgd; last_ran];
   kernel_region_share_hyp host_kvm;
 
   host_kvm.@[arch_pkvm_enabled] <- protected;
-  host_kvm.@[created_vcpus] <- Int32.of_int cpus;
+  host_kvm.@[created_vcpus] <- Int32.of_int vcpus;
   let handle = hvc (Pkvm_init_vm (host_kvm.kaddr, hyp_kvm.kaddr, pgd.kaddr, last_ran.kaddr)) in
 
   Log.debug (fun k -> k "init_vm ->@ %d@ %a" handle pp_region host_kvm);
-  { handle; cpus; mem = host_kvm }
+  { handle; vcpus; mem = host_kvm }
 
 let teardown_vm vm =
   Log.debug (fun k -> k "teardown_vm@ %d@ %a@ ->" vm.handle pp_region vm.mem);
@@ -382,9 +382,9 @@ let teardown_vcpu vcpu =
   kernel_region_free vcpu.mem
 
 let init_vcpu vm idx =
-  if vm.cpus <= idx then Fmt.invalid_arg "init_vcpu: cpu %d (max %d)" idx vm.cpus;
+  if vm.vcpus <= idx then Fmt.invalid_arg "init_vcpu: cpu %d (max %d)" idx vm.vcpus;
   let host_vcpu = kernel_region_alloc struct_kvm_vcpu_size
-  and hyp_vcpu  = kernel_region_alloc (hyp_vcpu_size + vm.cpus * sizeof_void_p) in
+  and hyp_vcpu  = kernel_region_alloc (hyp_vcpu_size + vm.vcpus * sizeof_void_p) in
 
   List.iter kernel_region_release [host_vcpu; hyp_vcpu];
   kernel_region_share_hyp host_vcpu;

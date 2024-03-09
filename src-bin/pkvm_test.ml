@@ -66,7 +66,7 @@ let t_init_deinit_vcpu () =
   teardown_vcpu vcpu
 
 let t_init_deinit_vcpus () =
-  let vm = init_vm ~cpus:2 () in
+  let vm = init_vm ~vcpus:2 () in
   let vcpu1 = init_vcpu vm 0
   and vcpu2 = init_vcpu vm 1 in
   teardown_vm vm;
