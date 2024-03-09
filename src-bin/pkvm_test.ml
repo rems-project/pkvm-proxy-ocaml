@@ -73,6 +73,12 @@ let t_init_deinit_vcpus () =
   teardown_vcpu vcpu1;
   teardown_vcpu vcpu2
 
+let t_init_vcpus_bad () =
+  let vm = init_vm ~vcpus:2 () in
+  match init_vcpu vm 1 with
+  | _ -> failwith "Expected exception"
+  | exception _ -> teardown_vm vm
+
 let t_vcpu_load_put () =
   let vm = init_vm () in
   let vcpu = init_vcpu vm 0 in
@@ -207,6 +213,7 @@ let _ = main [
 ; "vm init+deinit", t_init_deinit_vm
 ; "vcpu init+deinit", t_init_deinit_vcpu
 ; "vcpu init+deinit poly", t_init_deinit_vcpus
+; "vcpu init fail", t_init_vcpus_bad
 ; "vcpu load+put", t_vcpu_load_put
 ; "guest map+unmap", t_map_unmap
 ; "vcpu run", t_vcpu_run
