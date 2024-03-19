@@ -5,7 +5,7 @@ module Log = (val Logs.(Src.create "pkvm_tests" |> src_log))
 
 let setup_log () =
   Fmt_tty.setup_std_outputs ();
-  Logs.set_reporter (Logs_fmt.reporter ());
+  Logs.set_reporter (Logs_fmt.reporter () |> locked_reporter);
   Logs.set_level ~all:true (Some Logs.Warning)
 
 let config = Fmt.str "/payload/%s.json" Sys.argv.(0)
