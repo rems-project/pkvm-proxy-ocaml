@@ -1,8 +1,8 @@
 (executable
-  (name pkvm_test)
-  (public_name pkvm-test)
+  (name test_01)
+  (public_name test-01)
   (package pkvm-proxy)
-  (modules pkvm_test pkvm_test_config)
+  (modules test_01 pkvm_test_config)
   (preprocess (pps ppx_asm
                    ; -- --with-tc-prefix=aarch64-linux-gnu-
                    ))
