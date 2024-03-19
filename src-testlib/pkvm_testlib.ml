@@ -1,3 +1,5 @@
+module Log = (val Logs.(Src.create "pkvm_testlib" |> src_log))
+
 external sched_setaffinity : thread:int -> int array -> unit = "caml_sched_setaffinity"
 external sched_getaffinity : thread:int -> int array = "caml_sched_getaffinity"
 
@@ -28,3 +30,4 @@ let join = Domain.join
 
 let spawnv ~cpus f =
   List.init cpus (fun cpu -> spawn ~cpu (fun () -> f cpu)) |> List.map join
+

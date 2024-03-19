@@ -1,0 +1,9 @@
+(library
+  (name pkvm_testlib)
+  (synopsis "pKVM testlib")
+  (wrapped false)
+  (foreign_stubs
+    (language c)
+    (names pkvm-tests)
+    (flags (:standard -Wall -Wextra -O3)))
+  (libraries pkvm-proxy fmt logs fmt.tty logs.fmt))
