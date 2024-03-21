@@ -16,6 +16,14 @@
   (preprocess (pps ppx_asm))
   (libraries pkvm_proxy pkvm_testlib))
 
+(executable
+  (name test_03)
+  (public_name test-03)
+  (modules test_03)
+  (package pkvm-proxy)
+  (preprocess (pps ppx_asm))
+  (libraries pkvm_proxy pkvm_testlib))
+
 (install
   (package pkvm-proxy)
   (files pkvm-test.json)
