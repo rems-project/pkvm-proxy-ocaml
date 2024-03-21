@@ -76,7 +76,21 @@ let load_cfg ?(file = cfg) () =
 
 (** Entry points **)
 
+type test = { f : unit -> unit; name : string; desc : string; }
+let test ?(desc = "<NO DESC>") name f = { f; name; desc }
+
 let pp_tag = Fmt.(styled `Bold @@ styled `Green @@ styled `Italic string)
+
+let run1 ?(select = fun _ -> true) ~index t =
+  match select t.name with
+  | true -> 
+      Log.app (fun k -> k "@.╭────────────────────");
+      Log.app (fun k -> k   "│ start (#%d): %a@." index pp_tag t.name);
+      t.f ();
+      Log.app (fun k -> k "@.│ ok: %a" pp_tag t.name);
+      Log.app (fun k -> k   "╰────────────────────@.");
+  | false ->
+      Log.app (fun k -> k "@.== skip: %a@." pp_tag t.name)
 
 let main xs =
   Logs_threaded.enable ();
@@ -93,14 +107,5 @@ let main xs =
       Log.warn (fun k -> k "`%s': %s" cfg msg);
       fun _ -> true
   in
-  xs |> List.iteri (fun i (name, test) ->
-    match select name with
-    | true ->
-        Log.app (fun k -> k "@.╭────────────────────@.│ start (#%d): %a@." i pp_tag name);
-        test ();
-        Log.app (fun k -> k "@.│ ok: %a@.╰────────────────────@." pp_tag name);
-
-    | false ->
-        Log.app (fun k -> k "@.== skip: %a@." pp_tag name)
-  );
+  xs |> List.iteri (fun i test -> run1 ~select ~index:i test);
   Log.app (fun k -> k "all done")

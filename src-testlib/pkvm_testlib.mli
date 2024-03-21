@@ -13,4 +13,6 @@ val cores : int
 
 (* Test entrypoints *)
 
-val main : (string * (unit -> unit)) list -> unit
+type test
+val test : ?desc:string -> string -> (unit -> unit) -> test
+val main : test list -> unit
