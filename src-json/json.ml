@@ -92,7 +92,13 @@ module Q = struct
       end
   | j -> err p "object" j
 
-  let map f g p j = g p j |> f
+  let map f q p j = q p j |> f
+
+  let to_err q p j = match q p j with
+  | Ok v -> v
+  | Error (`Msg msg) -> err p msg j
+
+  let map_r f q = map f q |> to_err
 
   let query q j = try Ok (q [] j) with Failure e -> error_msg e
 end

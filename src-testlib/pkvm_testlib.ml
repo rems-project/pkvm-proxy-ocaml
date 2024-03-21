@@ -37,10 +37,18 @@ let spawnv ~cpus f =
 
 (** Config. **)
 
+module Smap = Map.Make(String)
+
+let disable xs =
+  let m = Smap.of_seq (List.to_seq xs) in
+  fun x -> Smap.find_opt x m |> Option.value ~default:true
+
 let schema =
   let open Json.Q in
-  obj (fun ll ts -> ll, ts)
-  |> mem_opt "loglevel"  string
+  obj (fun ll ts ->
+    Option.join ll,
+    Option.fold ~none:(fun _ -> true) ~some:disable ts)
+  |> (mem_opt "loglevel" (string |> map_r Logs.level_of_string))
   |> mem_opt "run" (mems bool)
 
 let buf_add_fd buf fd =
@@ -56,8 +64,6 @@ let to_unix_result f x = match f x with
 | exception Unix.Unix_error (err, _, _) -> Error (`Msg (Unix.error_message err))
 | v -> Ok v
 
-module Smap = Map.Make(String)
-
 let cfg = Fmt.str "%s.json" Sys.argv.(0)
 
 let load_cfg ?(file = cfg) () =
@@ -66,12 +72,7 @@ let load_cfg ?(file = cfg) () =
   buf_add_fd buf fd; Unix.close fd;
   let* json = Json.of_string (Buffer.contents buf) in
   let* level, run = Json.Q.query schema json in
-  let* level = Option.fold level ~none:(Ok None) ~some:Logs.level_of_string in
-  let run = match run with
-  | Some xs -> Smap.of_seq (List.to_seq xs)
-  | _ -> Smap.empty in
-  let runf test = Smap.find_opt test run |> Option.value ~default:true in
-  Ok (level, runf)
+  Ok (level, run)
 
 (** Entry points **)
 

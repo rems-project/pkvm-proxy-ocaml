@@ -88,6 +88,10 @@ module Q : sig
 
   val map : ('a -> 'b) -> 'a t -> 'b t
 
+  val to_err : 'a result t -> 'a t
+
+  val map_r : ('a -> 'b result) -> 'a t -> 'b t
+
   val json : json t
   (** [json] queries any JSON value. *)
 
