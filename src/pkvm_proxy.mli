@@ -162,7 +162,7 @@ val vcpu_memcache : (struct_kvm_vcpu, memcache) field
 
     All implemented in terms of the above. *)
 
-val map_region_guest : struct_kvm_vcpu region -> 'a region -> int64 -> unit
+val map_region_guest : ?memcache_topup:bool -> struct_kvm_vcpu region -> 'a region -> int64 -> unit
 (** Maps a region into the guest.
 
     {b Warning} Must be invoked in a [vcpu-load]...[vcpu-put] block. *)

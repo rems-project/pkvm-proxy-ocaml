@@ -71,6 +71,21 @@ let t_map_unmap = test "guest map+unmap" @@ fun _ ->
           = String.init 8 (fun _ -> '\x00'));
   kernel_region_free cbuf
 
+let t_map_bad = test "guest map no topup" @@ fun _ ->
+  let vm = init_vm () in
+  let vcpu = init_vcpu vm 0 in
+  vcpu_load vcpu;
+  let cbuf = kernel_region_alloc 0x1000 in
+  kernel_region_release cbuf;
+  ( match map_region_guest ~memcache_topup:false vcpu.mem cbuf 0x0L with
+    | exception Unix.Unix_error (Unix.ENOMEM, _, _) -> ()
+    | _ -> assert false );
+  vcpu_put ();
+  teardown_vm vm;
+  teardown_vcpu vcpu;
+  kernel_region_reclaim cbuf;
+  kernel_region_free cbuf
+
 let t_vcpu_run = test "vcpu run" @@ fun _ ->
   let code = {%asm|
     movz x30, 0xdead
@@ -219,6 +234,7 @@ let _ = main [
 ; t_init_vcpus_bad
 ; t_vcpu_load_put
 ; t_map_unmap
+; t_map_bad
 ; t_vcpu_run
 ; t_guest_hvc_version
 ; t_guest_hvc_mem_share

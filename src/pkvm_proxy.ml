@@ -339,13 +339,13 @@ let kernel_region_reclaim reg =
   Log.debug (fun k -> k "kernel_region_reclaim %a" pp_region reg);
   for_each_page ~base:reg.phys reg.size @@ fun pg -> hvc (Pkvm_host_reclaim_page pg)
 
-let map_region_guest host_vcpu reg guest_phys =
+let map_region_guest ?(memcache_topup = true) host_vcpu reg guest_phys =
   let open Int64 in
   let phys  = reg.phys lsr page_shift
   and gphys = guest_phys lsr page_shift in
   Log.debug (fun k -> k "map_region_guest %a" pp_region reg);
   for_each_page reg.size @@ fun pg ->
-    topup_hyp_memcache (host_vcpu.@[vcpu_memcache]) 5;
+    if memcache_topup then topup_hyp_memcache (host_vcpu.@[vcpu_memcache]) 5;
     hvc (Pkvm_host_map_guest (phys + pg, gphys + pg))
 
 let max_vm_vcpus = 16
