@@ -64,7 +64,17 @@ let to_unix_result f x = match f x with
 | exception Unix.Unix_error (err, _, _) -> Error (`Msg (Unix.error_message err))
 | v -> Ok v
 
-let cfg = Fmt.str "%s.json" Sys.argv.(0)
+let rec p_root p =
+  match String.rindex_opt p '.' with
+  | None -> p
+  | Some i0 ->
+      match String.rindex_opt p '/' with
+      | Some i1 when i1 > i0 -> p
+      | _ -> p_root (String.sub p 0 i0)
+
+let cmdname = p_root Sys.argv.(0)
+
+let cfg = Fmt.str "%s.json" cmdname
 
 let load_cfg ?(file = cfg) () =
   let buf = Buffer.create 17 in
@@ -77,6 +87,7 @@ let load_cfg ?(file = cfg) () =
 (** Entry points **)
 
 type test = { f : unit -> unit; name : string; desc : string; }
+
 let test ?(desc = "<NO DESC>") name f = { f; name; desc }
 
 let pp_tag = Fmt.(styled `Bold @@ styled `Green @@ styled `Italic string)
