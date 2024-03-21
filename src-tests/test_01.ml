@@ -10,29 +10,29 @@ let trap_on_hypercall =
   Cond.(exit_is 2 &&& fault (fun f ->
     f.esr_el2 = 0x5a000000L && f.hpfar_el2 = 0L && f.far_el2 = 0L))
 
-let t_region_share = test "kernel share" @@ fun _ ->
+let t_share_hyp = test "share_hyp" @@ fun _ ->
   let reg = kernel_region_alloc 0x1000 in
   kernel_region_release reg;
   kernel_region_share_hyp reg
 
-let t_region_share_unshare = test "kernel share+unshare" @@ fun _ ->
+let t_share_unshare_hyp = test "host_share|unshare_hyp" @@ fun _ ->
   let reg = kernel_region_alloc 0x1000 in
   kernel_region_release reg;
   kernel_region_share_hyp reg;
   kernel_region_unshare_hyp reg;
   kernel_region_free reg
 
-let t_init_deinit_vm = test "vm init+deinit" @@ fun _ ->
+let t_init_teardown_vm = test "init|teardown_vm" @@ fun _ ->
   let vm = init_vm () in
   teardown_vm vm
 
-let t_init_deinit_vcpu = test "vcpu init+deinit" @@ fun _ ->
+let t_init_deinit_vcpu = test "init_vcpu + deinit" @@ fun _ ->
   let vm = init_vm () in
   let vcpu = init_vcpu vm 0 in
   teardown_vm vm;
   teardown_vcpu vcpu
 
-let t_init_deinit_vcpus = test "vcpu init+deinit poly" @@ fun _ ->
+let t_init_deinit_vcpus = test "init_vcpu + deinit, multiple" @@ fun _ ->
   let vm = init_vm ~vcpus:2 () in
   let vcpu1 = init_vcpu vm 0
   and vcpu2 = init_vcpu vm 1 in
@@ -40,13 +40,13 @@ let t_init_deinit_vcpus = test "vcpu init+deinit poly" @@ fun _ ->
   teardown_vcpu vcpu1;
   teardown_vcpu vcpu2
 
-let t_init_vcpus_bad = test "vcpu init fail" @@ fun _ ->
+let t_init_vcpus_bad = test "init_vcpu out of order" @@ fun _ ->
   let vm = init_vm ~vcpus:2 () in
   match init_vcpu vm 1 with
   | _ -> failwith "Expected exception"
   | exception _ -> teardown_vm vm
 
-let t_vcpu_load_put = test "vcpu load+put" @@ fun _ ->
+let t_vcpu_load_put = test "vcpu_load|put" @@ fun _ ->
   let vm = init_vm () in
   let vcpu = init_vcpu vm 0 in
   vcpu_load vcpu;
@@ -54,7 +54,7 @@ let t_vcpu_load_put = test "vcpu load+put" @@ fun _ ->
   teardown_vm vm;
   teardown_vcpu vcpu
 
-let t_map_unmap = test "guest map+unmap" @@ fun _ ->
+let t_map_unmap = test "host_map_guest + host_reclaim_page" @@ fun _ ->
   let vm = init_vm () in
   let vcpu = init_vcpu vm 0 in
   vcpu_load vcpu;
@@ -71,7 +71,7 @@ let t_map_unmap = test "guest map+unmap" @@ fun _ ->
           = String.init 8 (fun _ -> '\x00'));
   kernel_region_free cbuf
 
-let t_map_bad = test "guest map no topup" @@ fun _ ->
+let t_map_bad = test "host_map_guest with no memcache" @@ fun _ ->
   let vm = init_vm () in
   let vcpu = init_vcpu vm 0 in
   vcpu_load vcpu;
@@ -86,7 +86,7 @@ let t_map_bad = test "guest map no topup" @@ fun _ ->
   kernel_region_reclaim cbuf;
   kernel_region_free cbuf
 
-let t_vcpu_run = test "vcpu run" @@ fun _ ->
+let t_vcpu_run = test "vcpu_run" @@ fun _ ->
   let code = {%asm|
     movz x30, 0xdead
     ldr x0, [x30]
@@ -105,7 +105,7 @@ let t_vcpu_run = test "vcpu run" @@ fun _ ->
   kernel_region_reclaim cbuf;
   kernel_region_free cbuf
 
-let t_guest_hvc_version = test "guest hvc version" @@ fun _ ->
+let t_guest_hvc_version = test "guest_hvc: version" @@ fun _ ->
   let code = {%asm|
     movz w0, 0x8000, lsl 16
     hvc 0
@@ -126,7 +126,8 @@ let t_guest_hvc_version = test "guest hvc version" @@ fun _ ->
   kernel_region_reclaim cbuf;
   kernel_region_free cbuf
 
-let t_guest_hvc_mem_share = test "guest hvc mem_share" @@ fun _ ->
+let t_guest_hvc_mem_share =
+  test "guest_hvc: mem_share" @@ fun _ ->
   let code = {%asm|
     movz w0, 0xc600, lsl 16
     movk w0, 0x0003
@@ -155,7 +156,8 @@ let t_guest_hvc_mem_share = test "guest hvc mem_share" @@ fun _ ->
   kernel_region_reclaim mbuf;
   kernel_region_free mbuf
 
-let t_guest_hvc_mem_unshare = test "guest hvc mem_unshare" @@ fun _ ->
+let t_guest_hvc_mem_unshare =
+  test "guest_hvc: mem_share + mem_unshare" @@ fun _ ->
   let code = {%asm|
     movz w0, 0xc600, lsl 16
     movk w0, 0x0003
@@ -190,9 +192,9 @@ let t_guest_hvc_mem_unshare = test "guest hvc mem_unshare" @@ fun _ ->
   kernel_region_free mbuf
 
 let _ = main [
-  t_region_share
-; t_region_share_unshare
-; t_init_deinit_vm
+  t_share_hyp
+; t_share_unshare_hyp
+; t_init_teardown_vm
 ; t_init_deinit_vcpu
 ; t_init_deinit_vcpus
 ; t_init_vcpus_bad
