@@ -1,7 +1,7 @@
 (executable
-  (name test_01)
-  (public_name test-01)
-  (modules test_01)
+  (name test_01_basic)
+  (public_name test-01-basic)
+  (modules test_01_basic)
   (package pkvm-proxy)
   (preprocess (pps ppx_asm
                    ; -- --with-tc-prefix=aarch64-linux-gnu-
@@ -9,24 +9,17 @@
   (libraries pkvm_proxy pkvm_testlib))
 
 (executable
-  (name test_02)
-  (public_name test-02)
-  (modules test_02)
+  (name test_02_par)
+  (public_name test-02-par)
+  (modules test_02_par)
   (package pkvm-proxy)
-  (preprocess (pps ppx_asm))
   (libraries pkvm_proxy pkvm_testlib))
 
 (executable
-  (name test_03)
-  (public_name test-03)
-  (modules test_03)
+  (name test_03_softerr)
+  (public_name test-03-softerr)
+  (modules test_03_softerr)
   (package pkvm-proxy)
-  (preprocess (pps ppx_asm))
   (libraries pkvm_proxy pkvm_testlib))
-
-(install
-  (package pkvm-proxy)
-  (files pkvm-test.json)
-  (section share_root))
 
 (env (release (link_flags (-ccopt -static))))
