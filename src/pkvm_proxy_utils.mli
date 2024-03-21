@@ -35,12 +35,7 @@ module Int64 : sig
   val (lor) : int64 -> int64 -> int64
 end
 
-val locked_reporter : Logs.reporter -> Logs.reporter
-
 (**/**)
-
-val log : Logs.src
-(** Log source for the library. *)
 
 type log_cfg
 val setup_early_log : unit -> log_cfg

@@ -1,11 +1,3 @@
-let log = Logs.Src.create "Pkvm_proxy"
-
-let locked_reporter { Logs.report } =
-  let mx = Mutex.create () in
-  { Logs.report = fun src level ~over k msgf ->
-      Mutex.protect mx @@ fun () ->
-        report src level ~over k msgf }
-
 type log_cfg = Logs.reporter
 
 let setup_early_log () =

@@ -1,20 +1,19 @@
 open Bigarray
 open Pkvm_proxy_utils
 
-module Log = (val Logs.src_log log)
-let log_cfg = setup_early_log ()
+module Log = (val Logs.(Src.create "Pkvm_proxy" |> src_log))
 
 let pkvm =
+  let log_cfg = setup_early_log () in
   let open Unix in
-  try openfile "/sys/kernel/debug/pkvm_proxy" [O_RDWR] 0 with 
-  | Unix_error(ENOENT, _, _) ->
+  match openfile "/sys/kernel/debug/pkvm_proxy" [O_RDWR] 0 with 
+  | exception Unix_error(ENOENT, _, _) ->
       Log.err (fun k -> k "Cannot find pkvm proxy — is the kernel patched?");
       exit 1
-  | Unix_error(EACCES, _, _) ->
+  | exception Unix_error(EACCES, _, _) ->
       Log.err (fun k -> k "Cannot open pkvm proxy — we need to run as root!");
       exit 1
-
-let _ = reset_early_log log_cfg
+  | fd -> reset_early_log log_cfg; fd
 
 (** Hyp-proxy types **)
 

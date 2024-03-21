@@ -71,7 +71,7 @@ let t_map_unmap = test "host_map_guest + host_reclaim_page" @@ fun _ ->
           = String.init 8 (fun _ -> '\x00'));
   kernel_region_free cbuf
 
-let t_map_bad = test "host_map_guest with no memcache" @@ fun _ ->
+let t_map_no_memcache = test "host_map_guest with no memcache" @@ fun _ ->
   let vm = init_vm () in
   let vcpu = init_vcpu vm 0 in
   vcpu_load vcpu;
@@ -200,7 +200,7 @@ let _ = main [
 ; t_init_vcpus_bad
 ; t_vcpu_load_put
 ; t_map_unmap
-; t_map_bad
+; t_map_no_memcache
 ; t_vcpu_run
 ; t_guest_hvc_version
 ; t_guest_hvc_mem_share
