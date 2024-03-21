@@ -6,4 +6,4 @@
     (language c)
     (names pkvm-tests)
     (flags (:standard -Wall -Wextra -O3)))
-  (libraries pkvm-proxy fmt logs fmt.tty logs.fmt))
+  (libraries pkvm-proxy json fmt fmt.tty logs logs.threaded logs.fmt))

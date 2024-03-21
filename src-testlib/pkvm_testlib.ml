@@ -1,10 +1,13 @@
-module Log = (val Logs.(Src.create "pkvm_testlib" |> src_log))
-
 external sched_setaffinity : thread:int -> int array -> unit = "caml_sched_setaffinity"
 external sched_getaffinity : thread:int -> int array = "caml_sched_getaffinity"
 
-(* Parallelism Mk.1: directly reuse domains. Domains correspond to kernel
-   threads. *)
+module Log = (val Logs.(Src.create "pkvm_tests" |> src_log))
+
+(** Parallelism. **)
+
+(*
+ * Mk.1: directly reuse domains. Domains correspond to kernel threads.
+ *)
 
 type 'a thread = 'a Domain.t
 
@@ -31,3 +34,72 @@ let join = Domain.join
 let spawnv ~cpus f =
   List.init cpus (fun cpu -> spawn ~cpu (fun () -> f cpu)) |> List.map join
 
+
+(** Config. **)
+
+let schema =
+  let open Json.Q in
+  obj (fun ll ts -> ll, ts)
+  |> mem_opt "loglevel"  string
+  |> mem_opt "run" (mems bool)
+
+let buf_add_fd buf fd =
+  let bs = Bytes.create 4096 in
+  let rec go () = match Unix.read fd bs 0 4096 with
+  | 0 -> ()
+  | n -> Buffer.add_subbytes buf bs 0 n; go () in
+  go ()
+
+let ( let* ) = Result.bind
+
+let to_unix_result f x = match f x with
+| exception Unix.Unix_error (err, _, _) -> Error (`Msg (Unix.error_message err))
+| v -> Ok v
+
+module Smap = Map.Make(String)
+
+let cfg = Fmt.str "%s.json" Sys.argv.(0)
+
+let load_cfg ?(file = cfg) () =
+  let buf = Buffer.create 17 in
+  let* fd = to_unix_result Unix.(openfile file [O_RDONLY]) 0 in
+  buf_add_fd buf fd; Unix.close fd;
+  let* json = Json.of_string (Buffer.contents buf) in
+  let* level, run = Json.Q.query schema json in
+  let* level = Option.fold level ~none:(Ok None) ~some:Logs.level_of_string in
+  let run = match run with
+  | Some xs -> Smap.of_seq (List.to_seq xs)
+  | _ -> Smap.empty in
+  let runf test = Smap.find_opt test run |> Option.value ~default:true in
+  Ok (level, runf)
+
+(** Entry points **)
+
+let pp_tag = Fmt.(styled `Bold @@ styled `Green @@ styled `Italic string)
+
+let main xs =
+  Logs_threaded.enable ();
+
+  Fmt_tty.setup_std_outputs ();
+  Logs.set_reporter (Logs_fmt.reporter ());
+  Logs.set_level ~all:true (Some Logs.Warning);
+
+  let select = match load_cfg () with
+  | Ok (ll, f) ->
+      Logs.set_level ~all:true ll;
+      f
+  | Error (`Msg msg) ->
+      Log.warn (fun k -> k "`%s': %s" cfg msg);
+      fun _ -> true
+  in
+  xs |> List.iteri (fun i (name, test) ->
+    match select name with
+    | true ->
+        Log.app (fun k -> k "@.╭────────────────────@.│ start (#%d): %a@." i pp_tag name);
+        test ();
+        Log.app (fun k -> k "@.│ ok: %a@.╰────────────────────@." pp_tag name);
+
+    | false ->
+        Log.app (fun k -> k "@.== skip: %a@." pp_tag name)
+  );
+  Log.app (fun k -> k "all done")

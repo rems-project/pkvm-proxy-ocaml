@@ -1,3 +1,5 @@
+(** Parallelism prims *)
+
 type 'a thread
 (** Joinable parallel things. *)
 
@@ -9,3 +11,6 @@ val join : 'a thread -> 'a
 val spawnv : cpus:int -> (int -> 'a) -> 'a list
 val cores : int
 
+(* Test entrypoints *)
+
+val main : (string * (unit -> unit)) list -> unit

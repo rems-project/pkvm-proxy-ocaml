@@ -2,11 +2,10 @@
   (name test_01)
   (public_name test-01)
   (package pkvm-proxy)
-  (modules test_01 pkvm_test_config)
   (preprocess (pps ppx_asm
                    ; -- --with-tc-prefix=aarch64-linux-gnu-
                    ))
-  (libraries pkvm_proxy json logs.fmt fmt.tty))
+  (libraries pkvm_proxy pkvm_testlib))
 
 (install
   (package pkvm-proxy)

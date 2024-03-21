@@ -1,39 +1,6 @@
 open Pkvm_proxy
 open Pkvm_proxy_utils
-
-module Log = (val Logs.(Src.create "pkvm_tests" |> src_log))
-
-let setup_log () =
-  Fmt_tty.setup_std_outputs ();
-  Logs.set_reporter (Logs_fmt.reporter () |> locked_reporter);
-  Logs.set_level ~all:true (Some Logs.Warning)
-
-let config = Fmt.str "/payload/%s.json" Sys.argv.(0)
-
-let pp_tag = Fmt.(styled `Bold @@ styled `Green @@ styled `Italic string)
-
-let main xs =
-  setup_log ();
-  sched_setaffinity ~thread:0 [|0|];
-  let select = match Pkvm_test_config.load config with
-  | Ok (ll, f) ->
-      Logs.set_level ~all:true ll;
-      f
-  | Error (`Msg msg) ->
-      Log.warn (fun k -> k "`%s': %s" config msg);
-      fun _ -> true
-  in
-  xs |> List.iteri (fun i (name, test) ->
-    match select name with
-    | true ->
-        Log.app (fun k -> k "@.╭────────────────────@.│ start (#%d): %a@." i pp_tag name);
-        test ();
-        Log.app (fun k -> k "@.│ ok: %a@.╰────────────────────@." pp_tag name);
-
-    | false ->
-        Log.app (fun k -> k "@.== skip: %a@." pp_tag name)
-  );
-  Log.app (fun k -> k "all done")
+open Pkvm_testlib
 
 let fault_at_0xdead =
   Cond.(exit_is 2 &&& fault (fun f ->
