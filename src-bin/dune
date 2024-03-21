@@ -1,10 +1,19 @@
 (executable
   (name test_01)
   (public_name test-01)
+  (modules test_01)
   (package pkvm-proxy)
   (preprocess (pps ppx_asm
                    ; -- --with-tc-prefix=aarch64-linux-gnu-
                    ))
+  (libraries pkvm_proxy pkvm_testlib))
+
+(executable
+  (name test_02)
+  (public_name test-02)
+  (modules test_02)
+  (package pkvm-proxy)
+  (preprocess (pps ppx_asm))
   (libraries pkvm_proxy pkvm_testlib))
 
 (install
