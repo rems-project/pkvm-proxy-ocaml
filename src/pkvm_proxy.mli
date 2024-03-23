@@ -200,19 +200,3 @@ val topup_vcpu_memcache : vcpu -> int -> unit
 
 val set_vcpu_regs : vcpu -> registers -> unit
 val get_vcpu_regs : vcpu -> registers
-
-type cond
-
-module Cond : sig
-  val exit : (int -> bool) -> cond
-  val exit_is : int -> cond
-  val fault : (fault_info -> bool) -> cond
-  val regs : (registers -> bool) -> cond
-  val (&&&) : cond -> cond -> cond
-  val (|||) : cond -> cond -> cond
-end
-
-val vcpu_run_expect : ?cond:cond -> vcpu -> unit
-(** Steps {{!vcpu_run}} until it returns something other than 0.
-
-    Check the optional expected condition [cond]. Raises on failure. *)

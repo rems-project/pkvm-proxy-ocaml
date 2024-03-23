@@ -413,38 +413,3 @@ let topup_vcpu_memcache vcpu = topup_hyp_memcache vcpu.mem.@[vcpu_memcache]
 let set_vcpu_regs vcpu regs =
   vcpu.mem.@[vcpu_regs] <- regs; vcpu_set_dirty vcpu
 let get_vcpu_regs vcpu = vcpu.mem.@[vcpu_regs]
-
-module Cond = struct
-  type t =
-  | No_regs of (int -> fault_info -> bool)
-  | Regs of (int -> fault_info -> registers -> bool)
-  let lift2 (++) f g = match f, g with
-  | No_regs f, No_regs g -> No_regs (fun a b -> f a b ++ g a b)
-  | Regs f, Regs g -> Regs (fun a b c -> f a b c ++ g a b c)
-  | Regs f, No_regs g | No_regs g, Regs f -> Regs (fun a b c -> f a b c ++ g a b)
-  let (&&&) = lift2 (&&) and (|||) = lift2 (||)
-  let exit f = No_regs (fun ex _ -> f ex)
-  let exit_is e = exit (fun x -> x = e)
-  let fault f = No_regs (fun _ -> f)
-  let regs f = Regs (fun _ _ -> f)
-end
-
-type cond = Cond.t
-
-let rec vcpu_run_expect ?cond vcpu =
-  match vcpu_run vcpu with
-  | 0 -> vcpu_run_expect ?cond vcpu
-  | exit ->
-      match cond with
-      | Some (Cond.No_regs f) ->
-          let flt = vcpu.mem.@[vcpu_fault] in
-          if not (f exit flt) then (
-            Log.err (fun k -> k "@[vcpu_run:@ exit %d@ fault %a@]" exit pp_fault_info flt);
-            invalid_arg "vcpu_run_expect")
-      | Some (Cond.Regs f) ->
-          vcpu_sync_state ();
-          let flt = vcpu.mem.@[vcpu_fault] and regs = vcpu.mem.@[vcpu_regs] in
-          if not (f exit flt regs) then (
-            Log.err (fun k -> k "@[vcpu_run@ exit %d@ fault %a@ regs %a@]" exit pp_fault_info flt pp_regs regs);
-            invalid_arg "vcpu_run_expect")
-      | None -> ()
