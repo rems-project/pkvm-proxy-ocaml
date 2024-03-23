@@ -138,18 +138,27 @@ type test = { f : unit -> unit; name : string; desc : string; }
 
 let test ?(desc = "<NO DESC>") name f = { f; name; desc }
 
-let pp_tag = Fmt.(styled `Bold @@ styled `Green @@ styled `Italic string)
+let pp_test_ok = Fmt.(styled `Green @@ styled `Bold @@ styled `Italic string)
+let pp_test_err = Fmt.(styled `Red @@ styled `Bold @@ styled `Italic string)
+
+let pp_t_start ppf (i, t) =
+  Fmt.pf ppf "@.╭────────────────────@.│ start (#%d): %a@." i pp_test_ok t.name
+let pp_t_end ppf t =
+  Fmt.pf ppf "@.│ ok: %a@.╰────────────────────@." pp_test_ok t.name
+let pp_t_error pp_err ppf (t, e) =
+  Fmt.pf ppf "@.│ error: %a: %a@.╰────────────────────@." pp_test_err t.name pp_err e
+let pp_exn ppf exn = Fmt.string ppf (Printexc.to_string exn)
 
 let run1 ?(select = fun _ -> true) ~index t =
   match select t.name with
+  | false -> Log.app (fun k -> k "@.== skip: %a@." pp_test_ok t.name)
   | true -> 
-      Log.app (fun k -> k "@.╭────────────────────");
-      Log.app (fun k -> k   "│ start (#%d): %a@." index pp_tag t.name);
-      t.f ();
-      Log.app (fun k -> k "@.│ ok: %a" pp_tag t.name);
-      Log.app (fun k -> k   "╰────────────────────@.");
-  | false ->
-      Log.app (fun k -> k "@.== skip: %a@." pp_tag t.name)
+      Log.app (fun k -> k "%a" pp_t_start (index, t));
+      match t.f () with
+      | _ -> Log.app (fun k -> k "%a" pp_t_end t)
+      | exception exn ->
+          Log.app (fun k -> k "%a" (pp_t_error pp_exn) (t, exn));
+          exit 1
 
 let main xs =
   Logs_threaded.enable ();
