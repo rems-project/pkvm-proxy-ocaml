@@ -24,8 +24,8 @@ let _ = sched_setaffinity ~thread:0 [|0|]
    independent of vcpu. *)
 
 let spawn ~cpu f = Domain.spawn @@ fun () ->
-  ( try sched_setaffinity ~thread:0 [|cpu|]
-    with Unix.Unix_error(Unix.EINVAL, _, _) ->
+  ( try sched_setaffinity ~thread:0 [|cpu|] with
+    Unix.Unix_error(Unix.EINVAL, _, _) ->
       Log.err (fun k -> k "Cannot pin thread to CPU %d — are we running with enough cpus?" cpu);
       Fmt.invalid_arg "spawn: cannot use cpu %d" cpu );
   f()
@@ -33,6 +33,16 @@ let join = Domain.join
 
 let spawnv ~cpus f =
   List.init cpus (fun cpu -> spawn ~cpu (fun () -> f cpu)) |> List.map join
+
+(** Test assertions *)
+
+exception Assert
+exception Expected_failure
+
+let pkvm_assert = function false -> raise Assert | _ -> ()
+let pkvm_expect_error f x = match f x with
+| exception (Pkvm_proxy.HVC _) -> ()
+| _ -> raise Expected_failure
 
 
 (** Config. **)
