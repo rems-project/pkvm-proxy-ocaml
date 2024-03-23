@@ -1,6 +1,6 @@
 open Pkvm_proxy
-open Pkvm_proxy_utils
 open Pkvm_testlib
+open Pkvm_proxy_utils
 
 let fault_at_0xdead =
   Cond.(exit_is 2 &&& fault (fun f ->
@@ -42,9 +42,8 @@ let t_init_deinit_vcpus = test "init_vcpu + deinit, multiple" @@ fun _ ->
 
 let t_init_vcpus_bad = test "init_vcpu out of order" @@ fun _ ->
   let vm = init_vm ~vcpus:2 () in
-  match init_vcpu vm 1 with
-  | _ -> failwith "Expected exception"
-  | exception _ -> teardown_vm vm
+  pkvm_expect_error (init_vcpu vm) 1;
+  teardown_vm vm
 
 let t_vcpu_load_put = test "vcpu_load|put" @@ fun _ ->
   let vm = init_vm () in
@@ -77,9 +76,7 @@ let t_map_no_memcache = test "host_map_guest with no memcache" @@ fun _ ->
   vcpu_load vcpu;
   let cbuf = kernel_region_alloc 0x1000 in
   kernel_region_release cbuf;
-  ( match map_region_guest ~memcache_topup:false vcpu.mem cbuf 0x0L with
-    | exception Unix.Unix_error (Unix.ENOMEM, _, _) -> ()
-    | _ -> assert false );
+  pkvm_expect_error (map_region_guest ~memcache_topup:false vcpu.mem cbuf) 0L;
   vcpu_put ();
   teardown_vm vm;
   teardown_vcpu vcpu;

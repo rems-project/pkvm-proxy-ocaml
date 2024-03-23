@@ -5,9 +5,7 @@ let t_share_hyp_twice = test "host_share_hyp twice" @@ fun _ ->
   let reg = kernel_region_alloc 0x1000 in
   kernel_region_release reg;
   kernel_region_share_hyp reg;
-  ( match kernel_region_share_hyp reg with
-    | exception Unix.Unix_error (Unix.EPERM, _, _) -> ()
-    | _ -> assert false );
+  pkvm_expect_error kernel_region_share_hyp reg;
   kernel_region_unshare_hyp reg;
   kernel_region_free reg
 
@@ -18,9 +16,7 @@ let t_share_guest_twice = test "host_map_guest twice" @@ fun _ ->
   let cbuf = kernel_region_alloc 0x1000 in
   kernel_region_release cbuf;
   map_region_guest vcpu.mem cbuf 0x0L;
-  ( match map_region_guest vcpu.mem cbuf 0x4000L with
-    | exception Unix.Unix_error (Unix.EPERM, _, _) -> ()
-    | _ -> assert false );
+  pkvm_expect_error (map_region_guest vcpu.mem cbuf) 0x4000L;
   vcpu_put ();
   teardown_vm vm;
   teardown_vcpu vcpu;
@@ -35,9 +31,7 @@ let t_share_hyp_then_guest =
   let vcpu = init_vcpu vm 0 in
   vcpu_load vcpu;
   kernel_region_share_hyp reg;
-  ( match map_region_guest vcpu.mem reg 0x0L with
-    | exception Unix.Unix_error(Unix.EPERM, _, _) -> ()
-    | _ -> assert false );
+  pkvm_expect_error (map_region_guest vcpu.mem reg) 0x0L;
   kernel_region_unshare_hyp reg;
   map_region_guest vcpu.mem reg 0x0L;
   vcpu_put ();
@@ -54,9 +48,7 @@ let t_share_guest_then_hyp =
   let vcpu = init_vcpu vm 0 in
   vcpu_load vcpu;
   map_region_guest vcpu.mem reg 0x0L;
-  ( match kernel_region_share_hyp reg with
-    | exception Unix.Unix_error (Unix.EPERM, _, _) -> ()
-    | _ -> assert false );
+  pkvm_expect_error kernel_region_share_hyp reg;
   vcpu_put ();
   teardown_vm vm;
   teardown_vcpu vcpu;
@@ -73,9 +65,7 @@ let t_guest_share_same_addr =
   kernel_region_release buf1;
   kernel_region_release buf2;
   map_region_guest vcpu.mem buf1 0x0L;
-  ( match map_region_guest vcpu.mem buf2 0x0L with
-    | exception Unix.Unix_error (Unix.EPERM, _, _) -> ()
-    | _ -> () );
+  pkvm_expect_error (map_region_guest vcpu.mem buf2) 0x0L;
   map_region_guest vcpu.mem buf2 0x1000L;
   vcpu_put ();
   teardown_vm vm;
