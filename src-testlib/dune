@@ -4,6 +4,6 @@
   (wrapped false)
   (foreign_stubs
     (language c)
-    (names pkvm-tests)
+    (names pkvm-testlib)
     (flags (:standard -Wall -Wextra -O3)))
   (libraries pkvm-proxy json fmt fmt.tty logs logs.threaded logs.fmt))
