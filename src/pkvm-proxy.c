@@ -1,9 +1,12 @@
 #include <sys/ioctl.h>
 #include <sys/mman.h>
 #include <strings.h>
+#include <errno.h>
 
 #include <caml/memory.h>
 #include <caml/alloc.h>
+#include <caml/fail.h>
+#include <caml/callback.h>
 #include <caml/unixsupport.h>
 #include <caml/bigarray.h>
 
@@ -20,8 +23,21 @@ CAMLprim value caml_sizes(void) {
   CAMLreturn(res);
 }
 
+static void caml_pkvm_proxy_error(int errcode) {
+  CAMLparam0();
+  CAMLlocal1(err);
+  const value *exn = caml_named_value("Pkvm.Proxy");
+  if (exn == NULL) caml_invalid_argument("Pkvm exceptions not initialized.");
+  err = caml_unix_error_of_code (errcode);
+  value res = caml_alloc_small(2, 0);
+  Field(res, 0) = *exn;
+  Field(res, 1) = err;
+  caml_raise(res);
+  CAMLnoreturn;
+}
+
 static inline int __ioc_wrap(int res) {
-  if (res < 0) uerror("ioctl", Nothing);
+  if (res < 0) caml_pkvm_proxy_error(errno);
   return Val_long(res);
 }
 

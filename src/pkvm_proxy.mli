@@ -42,10 +42,18 @@ type _ host_smccc_func =
 
 val pp_host_smccc_func : 'a host_smccc_func Fmt.t
 
+exception HVC of Unix.error
+(** HVC failure. *)
+
 val hvc : 'a host_smccc_func -> 'a
-(** [hvc func] performs the (host) hypercall described by [func]. *)
+(** [hvc func] performs the (host) hypercall described by [func].
+
+    @raise Hvc *)
 
 (** {1 Memory regions} *)
+
+exception Proxy of Unix.error
+(** General pKVM-proxy failure. *)
 
 type 'a region
 (** A kernel memory region.

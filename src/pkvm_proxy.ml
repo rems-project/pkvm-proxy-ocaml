@@ -54,6 +54,15 @@ type _ host_smccc_func =
 
 (** FFI **)
 
+exception Proxy of Unix.error
+exception HVC of Unix.error
+
+let _ = Callback.register_exception "Pkvm.Proxy" (Proxy Unix.E2BIG)
+let _ = Printexc.register_printer @@ function
+  | Proxy err -> Some (Fmt.str "pKVM-proxy error: %s" (Unix.error_message err))
+  | HVC err -> Some (Fmt.str "pKVM HVC error: %s" (Unix.error_message err))
+  | _ -> None
+
 type ('a, 'b) c_array = ('a, 'b, Bigarray.c_layout) Array1.t
 
 external sizes : unit -> int array = "caml_sizes"
@@ -124,6 +133,8 @@ let hvc (type a): a host_smccc_func -> a = function
 | Pkvm_vcpu_sync_state ->
     ioctl_0 pkvm (proxy_ioctl 27 0) |> returns_0
 | _ -> failwith "hvc: host smccc function not implemented"
+
+let hvc func = try hvc func with Proxy err -> raise (HVC err)
 
 type alloc_type = VMALLOC | PAGES_EXACT (* Order! *)
 let alloc (a: alloc_type) = _IO 'a' (Obj.magic a)
@@ -294,11 +305,7 @@ let pp_region ppf reg =
 
 let (//) a b = (a + b - 1) / b
 
-let hvc func =
-  Log.info (fun k -> k "hvc %a" pp_host_smccc_func func);
-  try hvc func with e ->
-    Log.err (fun k -> k "hvc %a@ ->@ exception@ %s" pp_host_smccc_func func (Printexc.to_string e));
-    raise e
+let hvc func = Log.info (fun k -> k "hvc %a" pp_host_smccc_func func); hvc func
 
 let page_size  = 0x1000
 and page_shift = 12
