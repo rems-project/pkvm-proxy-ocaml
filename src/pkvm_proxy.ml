@@ -333,25 +333,25 @@ let for_each_page ?(base = 0L) size f =
     f Int64.((base lsr page_shift) + of_int i)
   done
 
-let kernel_region_share_hyp reg =
-  Log.debug (fun k -> k "kernel_region_share_hyp %a" pp_region reg);
+let host_share_hyp reg =
+  Log.debug (fun k -> k "host_share_hyp %a" pp_region reg);
   for_each_page ~base:reg.phys reg.size @@ fun pg -> hvc (Pkvm_host_share_hyp pg)
 
-let kernel_region_unshare_hyp reg =
-  Log.debug (fun k -> k "kernel_region_unshare_hyp %a" pp_region reg);
+let host_unshare_hyp reg =
+  Log.debug (fun k -> k "host_unshare_hyp %a" pp_region reg);
   for_each_page ~base:reg.phys reg.size @@ fun pg -> hvc (Pkvm_host_unshare_hyp pg)
 
-let kernel_region_reclaim reg =
-  Log.debug (fun k -> k "kernel_region_reclaim %a" pp_region reg);
+let host_reclaim_region reg =
+  Log.debug (fun k -> k "host_reclaim_region %a" pp_region reg);
   for_each_page ~base:reg.phys reg.size @@ fun pg -> hvc (Pkvm_host_reclaim_page pg)
 
-let map_region_guest ?(memcache_topup = true) host_vcpu reg guest_phys =
+let host_map_guest ?(memcache_topup = true) vcpu reg guest_phys =
   let open Int64 in
   let phys  = reg.phys lsr page_shift
   and gphys = guest_phys lsr page_shift in
-  Log.debug (fun k -> k "map_region_guest %a" pp_region reg);
+  Log.debug (fun k -> k "host_map_guest %a" pp_region reg);
   for_each_page reg.size @@ fun pg ->
-    if memcache_topup then topup_hyp_memcache (host_vcpu.@[vcpu_memcache]) 5;
+    if memcache_topup then topup_hyp_memcache (vcpu.@[vcpu_memcache]) 5;
     hvc (Pkvm_host_map_guest (phys + pg, gphys + pg))
 
 let max_vm_vcpus = 16
@@ -367,7 +367,7 @@ let init_vm ?(vcpus = 1) ?(protected = true) () =
   and last_ran = kernel_region_alloc (max_vm_vcpus * sizeof_int) in
 
   List.iter kernel_region_release [host_kvm; hyp_kvm; pgd; last_ran];
-  kernel_region_share_hyp host_kvm;
+  host_share_hyp host_kvm;
 
   host_kvm.@[arch_pkvm_enabled] <- protected;
   host_kvm.@[created_vcpus] <- Int32.of_int vcpus;
@@ -380,11 +380,11 @@ let teardown_vm vm =
   Log.debug (fun k -> k "teardown_vm@ %d@ %a@ ->" vm.handle pp_region vm.mem);
   hvc (Pkvm_teardown_vm vm.handle);
   free_hyp_memcache vm.mem.@[arch_pkvm_teardown_mc];
-  kernel_region_unshare_hyp vm.mem;
+  host_unshare_hyp vm.mem;
   kernel_region_free vm.mem
 
-let teardown_vcpu vcpu =
-  kernel_region_unshare_hyp vcpu.mem;
+let free_vcpu vcpu =
+  host_unshare_hyp vcpu.mem;
   kernel_region_free vcpu.mem
 
 let init_vcpu vm idx =
@@ -393,7 +393,7 @@ let init_vcpu vm idx =
   and hyp_vcpu  = kernel_region_alloc (hyp_vcpu_size + vm.vcpus * sizeof_void_p) in
 
   List.iter kernel_region_release [host_vcpu; hyp_vcpu];
-  kernel_region_share_hyp host_vcpu;
+  host_share_hyp host_vcpu;
 
   host_vcpu.@[vcpu_idx] <- Int32.of_int idx;
   host_vcpu.@[vcpu_hcr_el2] <- Int64.(1L lsl 31);

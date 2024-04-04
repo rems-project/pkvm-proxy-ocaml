@@ -4,9 +4,9 @@ open Pkvm_testlib
 let t_share_hyp_twice = test "host_share_hyp twice" @@ fun _ ->
   let reg = kernel_region_alloc 0x1000 in
   kernel_region_release reg;
-  kernel_region_share_hyp reg;
-  pkvm_expect_error kernel_region_share_hyp reg;
-  kernel_region_unshare_hyp reg;
+  host_share_hyp reg;
+  pkvm_expect_error host_share_hyp reg;
+  host_unshare_hyp reg;
   kernel_region_free reg
 
 let t_share_guest_twice = test "host_map_guest twice" @@ fun _ ->
@@ -15,12 +15,12 @@ let t_share_guest_twice = test "host_map_guest twice" @@ fun _ ->
   vcpu_load vcpu;
   let cbuf = kernel_region_alloc 0x1000 in
   kernel_region_release cbuf;
-  map_region_guest vcpu.mem cbuf 0x0L;
-  pkvm_expect_error (map_region_guest vcpu.mem cbuf) 0x4000L;
+  host_map_guest vcpu.mem cbuf 0x0L;
+  pkvm_expect_error (host_map_guest vcpu.mem cbuf) 0x4000L;
   vcpu_put ();
   teardown_vm vm;
-  teardown_vcpu vcpu;
-  kernel_region_reclaim cbuf;
+  free_vcpu vcpu;
+  host_reclaim_region cbuf;
   kernel_region_free cbuf
 
 let t_share_hyp_then_guest =
@@ -30,14 +30,14 @@ let t_share_hyp_then_guest =
   let vm = init_vm () in
   let vcpu = init_vcpu vm 0 in
   vcpu_load vcpu;
-  kernel_region_share_hyp reg;
-  pkvm_expect_error (map_region_guest vcpu.mem reg) 0x0L;
-  kernel_region_unshare_hyp reg;
-  map_region_guest vcpu.mem reg 0x0L;
+  host_share_hyp reg;
+  pkvm_expect_error (host_map_guest vcpu.mem reg) 0x0L;
+  host_unshare_hyp reg;
+  host_map_guest vcpu.mem reg 0x0L;
   vcpu_put ();
   teardown_vm vm;
-  teardown_vcpu vcpu;
-  kernel_region_reclaim reg;
+  free_vcpu vcpu;
+  host_reclaim_region reg;
   kernel_region_free reg
 
 let t_share_guest_then_hyp =
@@ -47,12 +47,12 @@ let t_share_guest_then_hyp =
   let vm = init_vm () in
   let vcpu = init_vcpu vm 0 in
   vcpu_load vcpu;
-  map_region_guest vcpu.mem reg 0x0L;
-  pkvm_expect_error kernel_region_share_hyp reg;
+  host_map_guest vcpu.mem reg 0x0L;
+  pkvm_expect_error host_share_hyp reg;
   vcpu_put ();
   teardown_vm vm;
-  teardown_vcpu vcpu;
-  kernel_region_reclaim reg;
+  free_vcpu vcpu;
+  host_reclaim_region reg;
   kernel_region_free reg
 
 let t_guest_share_same_addr =
@@ -64,15 +64,15 @@ let t_guest_share_same_addr =
   let buf2 = kernel_region_alloc 0x1000 in
   kernel_region_release buf1;
   kernel_region_release buf2;
-  map_region_guest vcpu.mem buf1 0x0L;
-  pkvm_expect_error (map_region_guest vcpu.mem buf2) 0x0L;
-  map_region_guest vcpu.mem buf2 0x1000L;
+  host_map_guest vcpu.mem buf1 0x0L;
+  pkvm_expect_error (host_map_guest vcpu.mem buf2) 0x0L;
+  host_map_guest vcpu.mem buf2 0x1000L;
   vcpu_put ();
   teardown_vm vm;
-  teardown_vcpu vcpu;
-  kernel_region_reclaim buf1;
+  free_vcpu vcpu;
+  host_reclaim_region buf1;
   kernel_region_free buf1;
-  kernel_region_reclaim buf2;
+  host_reclaim_region buf2;
   kernel_region_free buf2
 
 (* TODO

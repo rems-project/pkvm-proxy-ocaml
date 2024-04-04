@@ -103,9 +103,9 @@ val kernel_region_free : 'a region -> unit
     {b WARNING} Only free memory fully owned by the kernel. Freeing memory shared
     or donated away will lead to kernel instability. *)
 
-val kernel_region_share_hyp : 'a region -> unit
-val kernel_region_unshare_hyp : 'a region -> unit
-val kernel_region_reclaim : 'a region -> unit
+val host_share_hyp : 'a region -> unit
+val host_unshare_hyp : 'a region -> unit
+val host_reclaim_region : 'a region -> unit
 
 (** {2 Field access}
 
@@ -170,7 +170,7 @@ val vcpu_memcache : (struct_kvm_vcpu, memcache) field
 
     All implemented in terms of the above. *)
 
-val map_region_guest : ?memcache_topup:bool -> struct_kvm_vcpu region -> 'a region -> int64 -> unit
+val host_map_guest : ?memcache_topup:bool -> struct_kvm_vcpu region -> 'a region -> int64 -> unit
 (** Maps a region into the guest.
 
     {b Warning} Must be invoked in a [vcpu-load]...[vcpu-put] block. *)
@@ -185,7 +185,7 @@ val init_vm : ?vcpus:int -> ?protected:bool -> unit -> vm
 val teardown_vm : vm -> unit
 
 val init_vcpu : vm -> int ->  vcpu
-val teardown_vcpu : vcpu -> unit
+val free_vcpu : vcpu -> unit
 
 val vcpu_load : vcpu -> unit
 val vcpu_put : unit -> unit

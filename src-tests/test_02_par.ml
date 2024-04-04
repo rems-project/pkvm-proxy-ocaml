@@ -12,7 +12,7 @@ let t_vcpu_load_put_par_1 = test "vcpu load+put parallel 1" @@ fun _ ->
     done
   in
   teardown_vm vm;
-  Array.iter teardown_vcpu vcpus
+  Array.iter free_vcpu vcpus
 
 (* Dance around initialising VCPUs on separate threads, which must be done in
    order. This is only for testing — much saner to init them ahead of time on the
@@ -35,7 +35,7 @@ let t_vcpu_load_put_par_2 = test "vcpu load+put parallel 2" @@ fun _ ->
   Semaphore.Binary.release sem.(0);
   List.iter join threads;
   teardown_vm vm;
-  Array.iter (function (Some vcpu) -> teardown_vcpu vcpu | _ -> assert false) vcpus
+  Array.iter (function (Some vcpu) -> free_vcpu vcpu | _ -> assert false) vcpus
 
 let t_vcpu_load_conflict =
   test "vcpu load on multiple threads" @@ fun _ ->
@@ -45,7 +45,7 @@ let t_vcpu_load_conflict =
   spawn ~cpu:1 (fun _ -> vcpu_load vcpu; pkvm_expect_error vcpu_run vcpu) |> join;
   vcpu_put();
   teardown_vm vm;
-  teardown_vcpu vcpu
+  free_vcpu vcpu
 
 let _ = main [
   t_vcpu_load_put_par_1

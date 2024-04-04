@@ -13,13 +13,13 @@ let trap_on_hypercall =
 let t_share_hyp = test "share_hyp" @@ fun _ ->
   let reg = kernel_region_alloc 0x1000 in
   kernel_region_release reg;
-  kernel_region_share_hyp reg
+  host_share_hyp reg
 
 let t_share_unshare_hyp = test "host_share|unshare_hyp" @@ fun _ ->
   let reg = kernel_region_alloc 0x1000 in
   kernel_region_release reg;
-  kernel_region_share_hyp reg;
-  kernel_region_unshare_hyp reg;
+  host_share_hyp reg;
+  host_unshare_hyp reg;
   kernel_region_free reg
 
 let t_init_teardown_vm = test "init|teardown_vm" @@ fun _ ->
@@ -30,15 +30,15 @@ let t_init_deinit_vcpu = test "init_vcpu + deinit" @@ fun _ ->
   let vm = init_vm () in
   let vcpu = init_vcpu vm 0 in
   teardown_vm vm;
-  teardown_vcpu vcpu
+  free_vcpu vcpu
 
 let t_init_deinit_vcpus = test "init_vcpu + deinit, multiple" @@ fun _ ->
   let vm = init_vm ~vcpus:2 () in
   let vcpu1 = init_vcpu vm 0
   and vcpu2 = init_vcpu vm 1 in
   teardown_vm vm;
-  teardown_vcpu vcpu1;
-  teardown_vcpu vcpu2
+  free_vcpu vcpu1;
+  free_vcpu vcpu2
 
 let t_init_vcpus_bad = test "init_vcpu out of order" @@ fun _ ->
   let vm = init_vm ~vcpus:2 () in
@@ -51,7 +51,7 @@ let t_vcpu_load_put = test "vcpu_load|put" @@ fun _ ->
   vcpu_load vcpu;
   vcpu_put ();
   teardown_vm vm;
-  teardown_vcpu vcpu
+  free_vcpu vcpu
 
 let t_map_unmap = test "host_map_guest + host_reclaim_page" @@ fun _ ->
   let vm = init_vm () in
@@ -61,11 +61,11 @@ let t_map_unmap = test "host_map_guest + host_reclaim_page" @@ fun _ ->
   kernel_region_release cbuf;
   Bigstring.blit_from_string "whatever" (region_memory cbuf);
   assert (Bigstring.sub_string ~n:8 (region_memory cbuf) = "whatever");
-  map_region_guest vcpu.mem cbuf 0x0L;
+  host_map_guest vcpu.mem cbuf 0x0L;
   vcpu_put ();
   teardown_vm vm;
-  teardown_vcpu vcpu;
-  kernel_region_reclaim cbuf;
+  free_vcpu vcpu;
+  host_reclaim_region cbuf;
   assert (Bigstring.sub_string ~n:8 (region_memory cbuf)
           = String.init 8 (fun _ -> '\x00'));
   kernel_region_free cbuf
@@ -76,11 +76,11 @@ let t_map_no_memcache = test "host_map_guest with no memcache" @@ fun _ ->
   vcpu_load vcpu;
   let cbuf = kernel_region_alloc 0x1000 in
   kernel_region_release cbuf;
-  pkvm_expect_error (map_region_guest ~memcache_topup:false vcpu.mem cbuf) 0L;
+  pkvm_expect_error (host_map_guest ~memcache_topup:false vcpu.mem cbuf) 0L;
   vcpu_put ();
   teardown_vm vm;
-  teardown_vcpu vcpu;
-  kernel_region_reclaim cbuf;
+  free_vcpu vcpu;
+  host_reclaim_region cbuf;
   kernel_region_free cbuf
 
 let t_vcpu_run = test "vcpu_run" @@ fun _ ->
@@ -94,12 +94,12 @@ let t_vcpu_run = test "vcpu_run" @@ fun _ ->
   let cbuf = kernel_region_alloc 0x1000 in
   kernel_region_release cbuf;
   Bigstring.blit_from_string code (region_memory cbuf);
-  map_region_guest vcpu.mem cbuf 0x0L;
+  host_map_guest vcpu.mem cbuf 0x0L;
   vcpu_run_expect vcpu ~cond:fault_at_0xdead;
   vcpu_put ();
   teardown_vm vm;
-  teardown_vcpu vcpu;
-  kernel_region_reclaim cbuf;
+  free_vcpu vcpu;
+  host_reclaim_region cbuf;
   kernel_region_free cbuf
 
 let t_guest_hvc_version = test "guest_hvc: version" @@ fun _ ->
@@ -115,12 +115,12 @@ let t_guest_hvc_version = test "guest_hvc: version" @@ fun _ ->
   let cbuf = kernel_region_alloc 0x1000 in
   kernel_region_release cbuf;
   Bigstring.blit_from_string code (region_memory cbuf);
-  map_region_guest vcpu.mem cbuf 0x0L;
+  host_map_guest vcpu.mem cbuf 0x0L;
   vcpu_run_expect vcpu ~cond:fault_at_0xdead;
   vcpu_put ();
   teardown_vm vm;
-  teardown_vcpu vcpu;
-  kernel_region_reclaim cbuf;
+  free_vcpu vcpu;
+  host_reclaim_region cbuf;
   kernel_region_free cbuf
 
 let t_guest_hvc_mem_share =
@@ -139,18 +139,18 @@ let t_guest_hvc_mem_share =
   let cbuf = kernel_region_alloc 0x1000 in
   kernel_region_release cbuf;
   Bigstring.blit_from_string code (region_memory cbuf);
-  map_region_guest vcpu.mem cbuf 0x0L;
+  host_map_guest vcpu.mem cbuf 0x0L;
   let mbuf = kernel_region_alloc 0x1000 in
   kernel_region_release mbuf;
-  map_region_guest vcpu.mem mbuf 0x2000L;
+  host_map_guest vcpu.mem mbuf 0x2000L;
   vcpu_run_expect vcpu ~cond:trap_on_hypercall;
   vcpu_run_expect vcpu ~cond:fault_at_0xdead;
   vcpu_put ();
   teardown_vm vm;
-  teardown_vcpu vcpu;
-  kernel_region_reclaim cbuf;
+  free_vcpu vcpu;
+  host_reclaim_region cbuf;
   kernel_region_free cbuf;
-  kernel_region_reclaim mbuf;
+  host_reclaim_region mbuf;
   kernel_region_free mbuf
 
 let t_guest_hvc_mem_unshare =
@@ -173,19 +173,19 @@ let t_guest_hvc_mem_unshare =
   let cbuf = kernel_region_alloc 0x1000 in
   kernel_region_release cbuf;
   Bigstring.blit_from_string code (region_memory cbuf);
-  map_region_guest vcpu.mem cbuf 0x0L;
+  host_map_guest vcpu.mem cbuf 0x0L;
   let mbuf = kernel_region_alloc 0x1000 in
   kernel_region_release mbuf;
-  map_region_guest vcpu.mem mbuf 0x2000L;
+  host_map_guest vcpu.mem mbuf 0x2000L;
   vcpu_run_expect vcpu ~cond:trap_on_hypercall;
   vcpu_run_expect vcpu ~cond:trap_on_hypercall;
   vcpu_run_expect vcpu ~cond:fault_at_0xdead;
   vcpu_put ();
   teardown_vm vm;
-  teardown_vcpu vcpu;
-  kernel_region_reclaim cbuf;
+  free_vcpu vcpu;
+  host_reclaim_region cbuf;
   kernel_region_free cbuf;
-  kernel_region_reclaim mbuf;
+  host_reclaim_region mbuf;
   kernel_region_free mbuf
 
 let _ = main [
