@@ -78,6 +78,23 @@ let t_map_no_memcache = test "host_map_guest with no memcache" @@ fun _ ->
   host_reclaim_region mem;
   Region.free mem
 
+let t_map_some_memcache = test "host_map_guest with some memcache" @@ fun _ ->
+  let mem = Region.alloc 0x1000 in
+  let vm = init_vm () in
+  let vcpu = init_vcpu vm 0 in
+  vcpu_load vcpu;
+  topup_hyp_memcache (vcpu.mem.@[vcpu_memcache]) 1;
+  pkvm_expect_error (host_map_guest ~memcache_topup:false vcpu mem) 0L;
+  topup_hyp_memcache (vcpu.mem.@[vcpu_memcache]) 1;
+  pkvm_expect_error (host_map_guest ~memcache_topup:false vcpu mem) 0L;
+  topup_hyp_memcache (vcpu.mem.@[vcpu_memcache]) 10;
+  host_map_guest ~memcache_topup:false vcpu mem 0L;
+  vcpu_put ();
+  teardown_vm vm;
+  free_vcpu vcpu;
+  host_reclaim_region mem;
+  Region.free
+
 let t_vcpu_run = test "vcpu_run" @@ fun _ ->
   let exe = Region.alloc 0x1000 ~init: {%asm|
     movz x30, 0xdead
@@ -179,6 +196,7 @@ let _ = main [
 ; t_vcpu_load_put
 ; t_map_unmap
 ; t_map_no_memcache
+; t_map_some_memcache
 ; t_vcpu_run
 ; t_guest_hvc_version
 ; t_guest_hvc_mem_share
