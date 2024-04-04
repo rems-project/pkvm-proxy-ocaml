@@ -3,7 +3,6 @@ open Pkvm_testlib
 
 let t_share_hyp_twice = test "host_share_hyp twice" @@ fun _ ->
   let reg = kernel_region_alloc 0x1000 in
-  kernel_region_release reg;
   host_share_hyp reg;
   pkvm_expect_error host_share_hyp reg;
   host_unshare_hyp reg;
@@ -14,7 +13,6 @@ let t_share_guest_twice = test "host_map_guest twice" @@ fun _ ->
   let vcpu = init_vcpu vm 0 in
   vcpu_load vcpu;
   let cbuf = kernel_region_alloc 0x1000 in
-  kernel_region_release cbuf;
   host_map_guest vcpu.mem cbuf 0x0L;
   pkvm_expect_error (host_map_guest vcpu.mem cbuf) 0x4000L;
   vcpu_put ();
@@ -26,7 +24,6 @@ let t_share_guest_twice = test "host_map_guest twice" @@ fun _ ->
 let t_share_hyp_then_guest =
   test "host_share_hyp then host_map_guest" @@ fun _ ->
   let reg = kernel_region_alloc 0x1000 in
-  kernel_region_release reg;
   let vm = init_vm () in
   let vcpu = init_vcpu vm 0 in
   vcpu_load vcpu;
@@ -43,7 +40,6 @@ let t_share_hyp_then_guest =
 let t_share_guest_then_hyp =
   test "host_map_guest then host_share_hyp" @@ fun _ ->
   let reg = kernel_region_alloc 0x1000 in
-  kernel_region_release reg;
   let vm = init_vm () in
   let vcpu = init_vcpu vm 0 in
   vcpu_load vcpu;
@@ -62,8 +58,6 @@ let t_guest_share_same_addr =
   vcpu_load vcpu;
   let buf1 = kernel_region_alloc 0x1000 in
   let buf2 = kernel_region_alloc 0x1000 in
-  kernel_region_release buf1;
-  kernel_region_release buf2;
   host_map_guest vcpu.mem buf1 0x0L;
   pkvm_expect_error (host_map_guest vcpu.mem buf2) 0x0L;
   host_map_guest vcpu.mem buf2 0x1000L;

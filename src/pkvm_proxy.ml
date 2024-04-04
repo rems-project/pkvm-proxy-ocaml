@@ -310,8 +310,15 @@ let hvc func = Log.info (fun k -> k "hvc %a" pp_host_smccc_func func); hvc func
 let page_size  = 0x1000
 and page_shift = 12
 
+let kernel_region_release reg =
+  Log.debug (fun k -> k "kernel_region_release %a" pp_region reg);
+  alloc_release reg.fd
+let kernel_region_free reg =
+  Log.debug (fun k -> k "kernel_region_free %a" pp_region reg);
+  alloc_free reg.fd
+
 (* Note — first access to mmaped memory clears it. *)
-let kernel_region_alloc size =
+let kernel_region_alloc ?init ?(release = true) size =
   let fd    = alloc_pages size in
   let kaddr = alloc_kaddr fd
   and phys  = alloc_phys fd
@@ -319,14 +326,13 @@ let kernel_region_alloc size =
   let res = { fd; size; kaddr; phys; mmap; __xx = ignore } in
   Gc.finalise (fun r -> if Lazy.is_val r.mmap then ba_munmap (Lazy.force r.mmap)) res;
   Log.debug (fun k -> k "kernel_region_alloc ->@ %a" pp_region res);
+  ( match init with
+    | Some s ->
+        Bigstring.blit_from_string s (Lazy.force mmap)
+          ~n:(min (String.length s) size)
+    | None -> () );
+  if release then kernel_region_release res;
   res
-
-let kernel_region_release reg =
-  Log.debug (fun k -> k "kernel_region_release %a" pp_region reg);
-  alloc_release reg.fd
-let kernel_region_free reg =
-  Log.debug (fun k -> k "kernel_region_free %a" pp_region reg);
-  alloc_free reg.fd
 
 let for_each_page ?(base = 0L) size f =
   for i = 0 to size // page_size - 1 do
@@ -361,12 +367,12 @@ type vcpu = { idx : int; mem : struct_kvm_vcpu region; vm : vm }
 
 let init_vm ?(vcpus = 1) ?(protected = true) () =
   assert (vcpus < max_vm_vcpus);
-  let host_kvm = kernel_region_alloc struct_kvm_size
-  and hyp_kvm  = kernel_region_alloc (hyp_vm_size + vcpus * sizeof_void_p)
-  and pgd      = kernel_region_alloc pgd_size
-  and last_ran = kernel_region_alloc (max_vm_vcpus * sizeof_int) in
+  let release = true in
+  let host_kvm = kernel_region_alloc ~release struct_kvm_size
+  and hyp_kvm  = kernel_region_alloc ~release (hyp_vm_size + vcpus * sizeof_void_p)
+  and pgd      = kernel_region_alloc ~release pgd_size
+  and last_ran = kernel_region_alloc ~release (max_vm_vcpus * sizeof_int) in
 
-  List.iter kernel_region_release [host_kvm; hyp_kvm; pgd; last_ran];
   host_share_hyp host_kvm;
 
   host_kvm.@[arch_pkvm_enabled] <- protected;
@@ -389,10 +395,10 @@ let free_vcpu vcpu =
 
 let init_vcpu vm idx =
   if vm.vcpus <= idx then Fmt.invalid_arg "init_vcpu: cpu %d (max %d)" idx vm.vcpus;
-  let host_vcpu = kernel_region_alloc struct_kvm_vcpu_size
-  and hyp_vcpu  = kernel_region_alloc (hyp_vcpu_size + vm.vcpus * sizeof_void_p) in
+  let release = true in
+  let host_vcpu = kernel_region_alloc ~release struct_kvm_vcpu_size
+  and hyp_vcpu  = kernel_region_alloc ~release (hyp_vcpu_size + vm.vcpus * sizeof_void_p) in
 
-  List.iter kernel_region_release [host_vcpu; hyp_vcpu];
   host_share_hyp host_vcpu;
 
   host_vcpu.@[vcpu_idx] <- Int32.of_int idx;

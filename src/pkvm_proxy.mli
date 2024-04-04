@@ -88,7 +88,7 @@ val region_memory : 'a region -> bigstring
     the mmap), then any access will lead to a kernel fault which may trigger a
     panic or just segfault the current program. *)
 
-val kernel_region_alloc : int -> 'a region
+val kernel_region_alloc : ?init:string -> ?release:bool -> int -> 'a region
 val kernel_region_release : 'a region -> unit
 (** Release this kernel region. This means that it won't be automatically freed
     when the corresponding file descriptor (reg->fd) is closed.
