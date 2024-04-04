@@ -136,7 +136,7 @@ let load_cfg ?(file = cfg) () =
 
 type test = { f : unit -> unit; name : string; desc : string; }
 
-let test ?(desc = "<NO DESC>") name f = { f; name; desc }
+let test ?(desc = "<NO DESC>") name f = { name; desc; f = fun x -> ignore (f x) }
 
 let pp_test_ok = Fmt.(styled `Green @@ styled `Bold @@ styled `Italic string)
 let pp_test_err = Fmt.(styled `Red @@ styled `Bold @@ styled `Italic string)

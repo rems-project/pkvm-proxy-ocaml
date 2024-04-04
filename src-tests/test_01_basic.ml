@@ -11,14 +11,14 @@ let trap_on_hypercall =
     f.esr_el2 = 0x5a000000L && f.hpfar_el2 = 0L && f.far_el2 = 0L))
 
 let t_share_hyp = test "share_hyp" @@ fun _ ->
-  let reg = Region.alloc 0x1000 in
-  host_share_hyp reg
+  let mem = Region.alloc 0x1000 in
+  host_share_hyp mem
 
 let t_share_unshare_hyp = test "host_share|unshare_hyp" @@ fun _ ->
-  let reg = Region.alloc 0x1000 in
-  host_share_hyp reg;
-  host_unshare_hyp reg;
-  Region.free reg
+  let mem = Region.alloc 0x1000 in
+  host_share_hyp mem;
+  host_unshare_hyp mem;
+  Region.free mem
 
 let t_init_teardown_vm = test "init|teardown_vm" @@ fun _ ->
   let vm = init_vm () in
@@ -52,51 +52,50 @@ let t_vcpu_load_put = test "vcpu_load|put" @@ fun _ ->
   free_vcpu vcpu
 
 let t_map_unmap = test "host_map_guest + host_reclaim_page" @@ fun _ ->
+  let mem = Region.alloc 0x1000 ~init:"whatever" in
+  assert (Bigstring.sub_string ~n:8 (Region.memory mem) = "whatever");
   let vm = init_vm () in
   let vcpu = init_vcpu vm 0 in
   vcpu_load vcpu;
-  let cbuf = Region.alloc 0x1000 ~init:"whatever" in
-  assert (Bigstring.sub_string ~n:8 (Region.memory cbuf) = "whatever");
-  host_map_guest vcpu cbuf 0x0L;
+  host_map_guest vcpu mem 0x0L;
   vcpu_put ();
   teardown_vm vm;
   free_vcpu vcpu;
-  host_reclaim_region cbuf;
+  host_reclaim_region mem;
   let zeros = String.init 8 (fun _ -> '\x00') in
-  assert (Bigstring.sub_string ~n:8 (Region.memory cbuf) = zeros);
-  Region.free cbuf
+  assert (Bigstring.sub_string ~n:8 (Region.memory mem) = zeros);
+  Region.free mem
 
 let t_map_no_memcache = test "host_map_guest with no memcache" @@ fun _ ->
+  let mem = Region.alloc 0x1000 in
   let vm = init_vm () in
   let vcpu = init_vcpu vm 0 in
   vcpu_load vcpu;
-  let cbuf = Region.alloc 0x1000 in
-  pkvm_expect_error (host_map_guest ~memcache_topup:false vcpu cbuf) 0L;
+  pkvm_expect_error (host_map_guest ~memcache_topup:false vcpu mem) 0L;
   vcpu_put ();
   teardown_vm vm;
   free_vcpu vcpu;
-  host_reclaim_region cbuf;
-  Region.free cbuf
+  host_reclaim_region mem;
+  Region.free mem
 
 let t_vcpu_run = test "vcpu_run" @@ fun _ ->
-  let code = {%asm|
+  let exe = Region.alloc 0x1000 ~init: {%asm|
     movz x30, 0xdead
     ldr x0, [x30]
   |} in
   let vm = init_vm () in
   let vcpu = init_vcpu vm 0 in
   vcpu_load vcpu;
-  let cbuf = Region.alloc 0x1000 ~init:code in
-  host_map_guest vcpu cbuf 0x0L;
+  host_map_guest vcpu exe 0x0L;
   vcpu_run_expect vcpu ~cond:fault_at_0xdead;
   vcpu_put ();
   teardown_vm vm;
   free_vcpu vcpu;
-  host_reclaim_region cbuf;
-  Region.free cbuf
+  host_reclaim_region exe;
+  Region.free exe
 
 let t_guest_hvc_version = test "guest_hvc: version" @@ fun _ ->
-  let code = {%asm|
+  let exe = Region.alloc 0x1000 ~init: {%asm|
     movz w0, 0x8000, lsl 16
     hvc 0
     movz x30, 0xdead
@@ -105,18 +104,18 @@ let t_guest_hvc_version = test "guest_hvc: version" @@ fun _ ->
   let vm = init_vm () in
   let vcpu = init_vcpu vm 0 in
   vcpu_load vcpu;
-  let cbuf = Region.alloc 0x1000 ~init:code in
-  host_map_guest vcpu cbuf 0x0L;
+  host_map_guest vcpu exe 0x0L;
   vcpu_run_expect vcpu ~cond:fault_at_0xdead;
   vcpu_put ();
   teardown_vm vm;
   free_vcpu vcpu;
-  host_reclaim_region cbuf;
-  Region.free cbuf
+  host_reclaim_region exe;
+  Region.free exe
 
 let t_guest_hvc_mem_share =
   test "guest_hvc: mem_share" @@ fun _ ->
-  let code = {%asm|
+  let mem = Region.alloc 0x1000
+  and exe = Region.alloc 0x1000 ~init: {%asm|
     movz w0, 0xc600, lsl 16
     movk w0, 0x0003
     mov w1, 0x2000
@@ -127,23 +126,22 @@ let t_guest_hvc_mem_share =
   let vm = init_vm () in
   let vcpu = init_vcpu vm 0 in
   vcpu_load vcpu;
-  let cbuf = Region.alloc 0x1000 ~init:code in
-  host_map_guest vcpu cbuf 0x0L;
-  let mbuf = Region.alloc 0x1000 in
-  host_map_guest vcpu mbuf 0x2000L;
+  host_map_guest vcpu exe 0x0L;
+  host_map_guest vcpu mem 0x2000L;
   vcpu_run_expect vcpu ~cond:trap_on_hypercall;
   vcpu_run_expect vcpu ~cond:fault_at_0xdead;
   vcpu_put ();
   teardown_vm vm;
   free_vcpu vcpu;
-  host_reclaim_region cbuf;
-  Region.free cbuf;
-  host_reclaim_region mbuf;
-  Region.free mbuf
+  host_reclaim_region exe;
+  host_reclaim_region mem;
+  Region.free exe;
+  Region.free mem
 
 let t_guest_hvc_mem_unshare =
   test "guest_hvc: mem_share + mem_unshare" @@ fun _ ->
-  let code = {%asm|
+  let mem = Region.alloc 0x1000
+  and exe = Region.alloc 0x1000 ~init: {%asm|
     movz w0, 0xc600, lsl 16
     movk w0, 0x0003
     mov w1, 0x2000
@@ -158,20 +156,18 @@ let t_guest_hvc_mem_unshare =
   let vm = init_vm () in
   let vcpu = init_vcpu vm 0 in
   vcpu_load vcpu;
-  let cbuf = Region.alloc 0x1000 ~init:code in
-  host_map_guest vcpu cbuf 0x0L;
-  let mbuf = Region.alloc 0x1000 in
-  host_map_guest vcpu mbuf 0x2000L;
+  host_map_guest vcpu exe 0x0L;
+  host_map_guest vcpu mem 0x2000L;
   vcpu_run_expect vcpu ~cond:trap_on_hypercall;
   vcpu_run_expect vcpu ~cond:trap_on_hypercall;
   vcpu_run_expect vcpu ~cond:fault_at_0xdead;
   vcpu_put ();
   teardown_vm vm;
   free_vcpu vcpu;
-  host_reclaim_region cbuf;
-  Region.free cbuf;
-  host_reclaim_region mbuf;
-  Region.free mbuf
+  host_reclaim_region exe;
+  host_reclaim_region mem;
+  Region.free exe;
+  Region.free mem
 
 let _ = main [
   t_share_hyp

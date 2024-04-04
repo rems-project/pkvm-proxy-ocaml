@@ -38,5 +38,5 @@ val vcpu_run_expect : ?cond:vcpu_cond -> Pkvm_proxy.vcpu -> unit
 (** Test entrypoints **)
 
 type test
-val test : ?desc:string -> string -> (unit -> unit) -> test
+val test : ?desc:string -> string -> (unit -> 'a) -> test
 val main : test list -> unit
