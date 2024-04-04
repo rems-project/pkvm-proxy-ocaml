@@ -71,41 +71,40 @@ type 'a region
 
     Free frees it immediately. Should be done on released regions. *)
 
-val pp_region : 'a region Fmt.t
+module Region : sig
+(** Regions and their life-cycle. *)
 
-val region_addr : 'a region -> int64 * int64
-(** The kernel address, and the physical address, of the region. *)
+  val alloc : ?init:string -> ?release:bool -> int -> 'a region
 
-val region_is_mapped : 'a region -> bool
-(** Did we [mmap] it? *)
+  val addr : 'a region -> int64 * int64
+  (** The kernel address, and the physical address, of the region. *)
 
-(** {2 Region lifecycle} *)
+  val is_mapped : 'a region -> bool
+  (** Did we [mmap] it? *)
 
-val region_memory : 'a region -> bigstring
-(** Let's [mmap] it after all. (Idempotent.)
+  val memory : 'a region -> bigstring
+  (** Let's [mmap] it after all. (Idempotent.)
 
-    {b WARNING} If the memory was also given to the hypervisor, (before or after
-    the mmap), then any access will lead to a kernel fault which may trigger a
-    panic or just segfault the current program. *)
+      {b WARNING} If the memory was also given to the hypervisor, (before or after
+      the mmap), then any access will lead to a kernel fault which may trigger a
+      panic or just segfault the current program. *)
 
-val kernel_region_alloc : ?init:string -> ?release:bool -> int -> 'a region
-val kernel_region_release : 'a region -> unit
-(** Release this kernel region. This means that it won't be automatically freed
-    when the corresponding file descriptor (reg->fd) is closed.
+  val release : 'a region -> unit
+  (** Release this kernel region. This means that it won't be automatically freed
+      when the corresponding file descriptor (reg->fd) is closed.
 
-    {b WARNING} This need to be done before donating or sharing any memory with
-    the hypervisor (or a KVM guest), otherwise the kernel may become unstable. *)
+      {b WARNING} This need to be done before donating or sharing any memory with
+      the hypervisor (or a KVM guest), otherwise the kernel may become unstable. *)
 
-val kernel_region_free : 'a region -> unit
-(** Free this kernel region. This means that won't be automatically freed
-    when the corresponding file descriptor (reg->fd) is closed.
+  val free : 'a region -> unit
+  (** Free this kernel region. This means that won't be automatically freed
+      when the corresponding file descriptor (reg->fd) is closed.
 
-    {b WARNING} Only free memory fully owned by the kernel. Freeing memory shared
-    or donated away will lead to kernel instability. *)
+      {b WARNING} Only free memory fully owned by the kernel. Freeing memory shared
+      or donated away will lead to kernel instability. *)
 
-val host_share_hyp : 'a region -> unit
-val host_unshare_hyp : 'a region -> unit
-val host_reclaim_region : 'a region -> unit
+  val pp : 'a region Fmt.t
+end
 
 (** {2 Field access}
 
@@ -170,16 +169,21 @@ val vcpu_memcache : (struct_kvm_vcpu, memcache) field
 
     All implemented in terms of the above. *)
 
-val host_map_guest : ?memcache_topup:bool -> struct_kvm_vcpu region -> 'a region -> int64 -> unit
-(** Maps a region into the guest.
-
-    {b Warning} Must be invoked in a [vcpu-load]...[vcpu-put] block. *)
-
 type vm = { handle : int; vcpus: int; mem : struct_kvm region }
 (** A guest. *)
 
 type vcpu = { idx : int; mem : struct_kvm_vcpu region; vm : vm }
 (** A VCPU *)
+
+val host_share_hyp : 'a region -> unit
+val host_unshare_hyp : 'a region -> unit
+
+val host_map_guest : ?memcache_topup:bool -> vcpu -> 'a region -> int64 -> unit
+(** Maps a region into the guest.
+
+    {b Warning} Must be invoked in a [vcpu-load]...[vcpu-put] block. *)
+
+val host_reclaim_region : 'a region -> unit
 
 val init_vm : ?vcpus:int -> ?protected:bool -> unit -> vm
 val teardown_vm : vm -> unit

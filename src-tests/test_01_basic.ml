@@ -11,14 +11,14 @@ let trap_on_hypercall =
     f.esr_el2 = 0x5a000000L && f.hpfar_el2 = 0L && f.far_el2 = 0L))
 
 let t_share_hyp = test "share_hyp" @@ fun _ ->
-  let reg = kernel_region_alloc 0x1000 in
+  let reg = Region.alloc 0x1000 in
   host_share_hyp reg
 
 let t_share_unshare_hyp = test "host_share|unshare_hyp" @@ fun _ ->
-  let reg = kernel_region_alloc 0x1000 in
+  let reg = Region.alloc 0x1000 in
   host_share_hyp reg;
   host_unshare_hyp reg;
-  kernel_region_free reg
+  Region.free reg
 
 let t_init_teardown_vm = test "init|teardown_vm" @@ fun _ ->
   let vm = init_vm () in
@@ -55,28 +55,28 @@ let t_map_unmap = test "host_map_guest + host_reclaim_page" @@ fun _ ->
   let vm = init_vm () in
   let vcpu = init_vcpu vm 0 in
   vcpu_load vcpu;
-  let cbuf = kernel_region_alloc 0x1000 ~init:"whatever" in
-  assert (Bigstring.sub_string ~n:8 (region_memory cbuf) = "whatever");
-  host_map_guest vcpu.mem cbuf 0x0L;
+  let cbuf = Region.alloc 0x1000 ~init:"whatever" in
+  assert (Bigstring.sub_string ~n:8 (Region.memory cbuf) = "whatever");
+  host_map_guest vcpu cbuf 0x0L;
   vcpu_put ();
   teardown_vm vm;
   free_vcpu vcpu;
   host_reclaim_region cbuf;
   let zeros = String.init 8 (fun _ -> '\x00') in
-  assert (Bigstring.sub_string ~n:8 (region_memory cbuf) = zeros);
-  kernel_region_free cbuf
+  assert (Bigstring.sub_string ~n:8 (Region.memory cbuf) = zeros);
+  Region.free cbuf
 
 let t_map_no_memcache = test "host_map_guest with no memcache" @@ fun _ ->
   let vm = init_vm () in
   let vcpu = init_vcpu vm 0 in
   vcpu_load vcpu;
-  let cbuf = kernel_region_alloc 0x1000 in
-  pkvm_expect_error (host_map_guest ~memcache_topup:false vcpu.mem cbuf) 0L;
+  let cbuf = Region.alloc 0x1000 in
+  pkvm_expect_error (host_map_guest ~memcache_topup:false vcpu cbuf) 0L;
   vcpu_put ();
   teardown_vm vm;
   free_vcpu vcpu;
   host_reclaim_region cbuf;
-  kernel_region_free cbuf
+  Region.free cbuf
 
 let t_vcpu_run = test "vcpu_run" @@ fun _ ->
   let code = {%asm|
@@ -86,14 +86,14 @@ let t_vcpu_run = test "vcpu_run" @@ fun _ ->
   let vm = init_vm () in
   let vcpu = init_vcpu vm 0 in
   vcpu_load vcpu;
-  let cbuf = kernel_region_alloc 0x1000 ~init:code in
-  host_map_guest vcpu.mem cbuf 0x0L;
+  let cbuf = Region.alloc 0x1000 ~init:code in
+  host_map_guest vcpu cbuf 0x0L;
   vcpu_run_expect vcpu ~cond:fault_at_0xdead;
   vcpu_put ();
   teardown_vm vm;
   free_vcpu vcpu;
   host_reclaim_region cbuf;
-  kernel_region_free cbuf
+  Region.free cbuf
 
 let t_guest_hvc_version = test "guest_hvc: version" @@ fun _ ->
   let code = {%asm|
@@ -105,14 +105,14 @@ let t_guest_hvc_version = test "guest_hvc: version" @@ fun _ ->
   let vm = init_vm () in
   let vcpu = init_vcpu vm 0 in
   vcpu_load vcpu;
-  let cbuf = kernel_region_alloc 0x1000 ~init:code in
-  host_map_guest vcpu.mem cbuf 0x0L;
+  let cbuf = Region.alloc 0x1000 ~init:code in
+  host_map_guest vcpu cbuf 0x0L;
   vcpu_run_expect vcpu ~cond:fault_at_0xdead;
   vcpu_put ();
   teardown_vm vm;
   free_vcpu vcpu;
   host_reclaim_region cbuf;
-  kernel_region_free cbuf
+  Region.free cbuf
 
 let t_guest_hvc_mem_share =
   test "guest_hvc: mem_share" @@ fun _ ->
@@ -127,19 +127,19 @@ let t_guest_hvc_mem_share =
   let vm = init_vm () in
   let vcpu = init_vcpu vm 0 in
   vcpu_load vcpu;
-  let cbuf = kernel_region_alloc 0x1000 ~init:code in
-  host_map_guest vcpu.mem cbuf 0x0L;
-  let mbuf = kernel_region_alloc 0x1000 in
-  host_map_guest vcpu.mem mbuf 0x2000L;
+  let cbuf = Region.alloc 0x1000 ~init:code in
+  host_map_guest vcpu cbuf 0x0L;
+  let mbuf = Region.alloc 0x1000 in
+  host_map_guest vcpu mbuf 0x2000L;
   vcpu_run_expect vcpu ~cond:trap_on_hypercall;
   vcpu_run_expect vcpu ~cond:fault_at_0xdead;
   vcpu_put ();
   teardown_vm vm;
   free_vcpu vcpu;
   host_reclaim_region cbuf;
-  kernel_region_free cbuf;
+  Region.free cbuf;
   host_reclaim_region mbuf;
-  kernel_region_free mbuf
+  Region.free mbuf
 
 let t_guest_hvc_mem_unshare =
   test "guest_hvc: mem_share + mem_unshare" @@ fun _ ->
@@ -158,10 +158,10 @@ let t_guest_hvc_mem_unshare =
   let vm = init_vm () in
   let vcpu = init_vcpu vm 0 in
   vcpu_load vcpu;
-  let cbuf = kernel_region_alloc 0x1000 ~init:code in
-  host_map_guest vcpu.mem cbuf 0x0L;
-  let mbuf = kernel_region_alloc 0x1000 in
-  host_map_guest vcpu.mem mbuf 0x2000L;
+  let cbuf = Region.alloc 0x1000 ~init:code in
+  host_map_guest vcpu cbuf 0x0L;
+  let mbuf = Region.alloc 0x1000 in
+  host_map_guest vcpu mbuf 0x2000L;
   vcpu_run_expect vcpu ~cond:trap_on_hypercall;
   vcpu_run_expect vcpu ~cond:trap_on_hypercall;
   vcpu_run_expect vcpu ~cond:fault_at_0xdead;
@@ -169,9 +169,9 @@ let t_guest_hvc_mem_unshare =
   teardown_vm vm;
   free_vcpu vcpu;
   host_reclaim_region cbuf;
-  kernel_region_free cbuf;
+  Region.free cbuf;
   host_reclaim_region mbuf;
-  kernel_region_free mbuf
+  Region.free mbuf
 
 let _ = main [
   t_share_hyp
