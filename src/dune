@@ -7,6 +7,6 @@
   (wrapped false)
   (foreign_stubs
     (language c)
-    (names pkvm-proxy)
+    (names pkvm-proxy pkvm-kcov)
     (flags (:standard -Wall -Wextra -O3)))
   (libraries unix bigarray fmt logs fmt.tty logs.fmt))
