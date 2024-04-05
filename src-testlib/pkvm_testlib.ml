@@ -149,16 +149,29 @@ let pp_t_error pp_err ppf (t, e) =
   Fmt.pf ppf "@.│ error: %a: %a@.╰────────────────────@." pp_test_err t.name pp_err e
 let pp_exn ppf exn = Fmt.string ppf (Printexc.to_string exn)
 
-let run1 ?(select = fun _ -> true) ~index t =
+let kcov_file = "/output/kcov-addr"
+
+let with_kcov_ppf f =
+  let oc = open_out kcov_file in
+  let ppf = Format.formatter_of_out_channel oc in
+  let res = f ppf in
+  Format.pp_print_flush ppf ();
+  close_out oc;
+  res
+
+let run1 ?(select = fun _ -> true) ~index ?kcov t =
   match select t.name with
   | false -> Log.app (fun k -> k "@.== skip: %a@." pp_test_ok t.name)
   | true -> 
       Log.app (fun k -> k "%a" pp_t_start (index, t));
-      match t.f () with
-      | _ -> Log.app (fun k -> k "%a" pp_t_end t)
-      | exception exn ->
+      kcov |> Option.iter Pkvm_kcov.enable;
+      ( try t.f () with exn ->
           Log.app (fun k -> k "%a" (pp_t_error pp_exn) (t, exn));
-          exit 1
+          exit 1 );
+      kcov |> Option.iter (fun k ->
+        Pkvm_kcov.disable k;
+        with_kcov_ppf (fun ppf -> Fmt.pf ppf "%a@." Pkvm_kcov.pp k));
+      Log.app (fun k -> k "%a" pp_t_end t)
 
 let main xs =
   Logs_threaded.enable ();
@@ -175,5 +188,7 @@ let main xs =
       Log.warn (fun k -> k "`%s': %s" cfg msg);
       fun _ -> true
   in
-  xs |> List.iteri (fun i test -> run1 ~select ~index:i test);
+  let kcov = Pkvm_kcov.create ~size:51200 ()
+  in
+  xs |> List.iteri (fun i test -> run1 ~select ~index:i ?kcov test);
   Log.app (fun k -> k "all done")
