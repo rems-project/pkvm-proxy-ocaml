@@ -187,18 +187,18 @@ let t_guest_hvc_mem_unshare =
   Region.free mem
 
 let _ = main [
-  t_share_hyp
-; t_share_unshare_hyp
-; t_init_teardown_vm
-; t_init_deinit_vcpu
-; t_init_deinit_vcpus
-; t_init_vcpus_bad
-; t_vcpu_load_put
-; t_map_unmap
-; t_map_no_memcache
-; t_map_some_memcache
-; t_vcpu_run
-; t_guest_hvc_version
-; t_guest_hvc_mem_share
-; t_guest_hvc_mem_unshare
+  t_share_hyp;
+  t_share_unshare_hyp;
+  t_init_teardown_vm;
+  t_init_deinit_vcpu;
+  t_init_deinit_vcpus;
+  t_init_vcpus_bad;
+  t_vcpu_load_put;
+  t_map_unmap;
+  t_map_no_memcache;
+  t_map_some_memcache;
+  t_vcpu_run;
+  t_guest_hvc_version;
+  t_guest_hvc_mem_share;
+  t_guest_hvc_mem_unshare;
 ]
