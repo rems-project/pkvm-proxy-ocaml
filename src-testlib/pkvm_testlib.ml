@@ -149,15 +149,9 @@ let pp_t_error pp_err ppf (t, e) =
   Fmt.pf ppf "@.│ error: %a: %a@.╰────────────────────@." pp_test_err t.name pp_err e
 let pp_exn ppf exn = Fmt.string ppf (Printexc.to_string exn)
 
-let kcov_file = "/output/kcov-addr"
-
-let with_kcov_ppf f =
-  let oc = open_out kcov_file in
-  let ppf = Format.formatter_of_out_channel oc in
-  let res = f ppf in
-  Format.pp_print_flush ppf ();
-  close_out oc;
-  res
+let kcov_file = "/output/kcov"
+let kcov_oc = lazy (open_out kcov_file)
+let kcov_ppf = lazy (Format.formatter_of_out_channel (Lazy.force kcov_oc))
 
 let run1 ?(select = fun _ -> true) ~index ?kcov t =
   match select t.name with
@@ -170,7 +164,7 @@ let run1 ?(select = fun _ -> true) ~index ?kcov t =
           exit 1 );
       kcov |> Option.iter (fun k ->
         Pkvm_kcov.disable k;
-        with_kcov_ppf (fun ppf -> Fmt.pf ppf "%a@." Pkvm_kcov.pp k));
+        Fmt.pf (Lazy.force kcov_ppf) "%a@." Pkvm_kcov.pp k);
       Log.app (fun k -> k "%a" pp_t_end t)
 
 let main xs =
@@ -188,7 +182,7 @@ let main xs =
       Log.warn (fun k -> k "`%s': %s" cfg msg);
       fun _ -> true
   in
-  let kcov = Pkvm_kcov.create ~size:51200 ()
+  let kcov = Pkvm_kcov.create ~size:51_200 ()
   in
   xs |> List.iteri (fun i test -> run1 ~select ~index:i ?kcov test);
   Log.app (fun k -> k "all done")

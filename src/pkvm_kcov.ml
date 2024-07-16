@@ -41,5 +41,5 @@ let get (_, buf) =
   IMap.to_seq !map
 
 let pp ppf kcov =
-  Fmt.pf ppf "@[<v>%a@]" Fmt.(seq ~sep:cut (fmt "0x%Lx"))
-    (get kcov |> Seq.map fst)
+  let pp_v ppf (a, b) = Fmt.(pf ppf "0x%Lx %d" a b) in
+  Fmt.pf ppf "@[<v>%a@]" Fmt.(seq ~sep:cut pp_v) (get kcov)
