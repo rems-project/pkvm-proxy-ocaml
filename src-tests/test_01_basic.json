@@ -12,6 +12,7 @@
     "host_map_guest with no memcache": true,
     "host_map_guest with some memcache": true,
     "vcpu_run": true,
+    "vcpu_run_n": true,
     "guest_hvc: version": true,
     "guest_hvc: mem_share": true,
     "guest_hvc: mem_share + mem_unshare": true

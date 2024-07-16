@@ -111,6 +111,29 @@ let t_vcpu_run = test "vcpu_run" @@ fun _ ->
   host_reclaim_region exe;
   Region.free exe
 
+let t_vcpu_run_n = test "vcpu_run_n" @@ fun _ ->
+  let exe = Region.alloc 0x1000 ~init: {%asm|
+    movz w0, 0x8000, lsl 16
+    hvc 0
+    movz x30, 0xdead
+    ldr x0, [x30]
+  |} in
+  let vcpus = 4 in
+  let vm = init_vm ~vcpus () in
+  let vcpus = List.init vcpus (init_vcpu vm) in
+  let vcpu0 = List.hd vcpus in
+  vcpu_load vcpu0;
+  host_map_guest vcpu0 exe 0x0L;
+  vcpu_put ();
+  vcpus |> List.iter (fun vcpu ->
+    vcpu_load vcpu;
+    vcpu_run_expect vcpu ~cond:fault_at_0xdead;
+    vcpu_put ());
+  teardown_vm vm;
+  List.iter free_vcpu vcpus;
+  host_reclaim_region exe;
+  Region.free exe
+
 let t_guest_hvc_version = test "guest_hvc: version" @@ fun _ ->
   let exe = Region.alloc 0x1000 ~init: {%asm|
     movz w0, 0x8000, lsl 16
@@ -198,6 +221,7 @@ let _ = main [
   t_map_no_memcache;
   t_map_some_memcache;
   t_vcpu_run;
+  t_vcpu_run_n;
   t_guest_hvc_version;
   t_guest_hvc_mem_share;
   t_guest_hvc_mem_unshare;
