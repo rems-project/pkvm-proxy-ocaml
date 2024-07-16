@@ -27,6 +27,8 @@ let enable ?(append = false) (fd, buf) =
 
 let disable (fd, _) = kcov_disable fd
 
+let reset (_, buf) = buf.{0} <- 0L
+
 module IMap = Map.Make(Int64)
 
 let get (_, buf) =
