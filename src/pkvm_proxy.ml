@@ -69,36 +69,40 @@ let ioctl_p_rd fd n k =
   ioctl_p fd n p |> returns_0;
   p.{0}
 
-let proxy_ioctl hvcnum numarg = _IOW 'h' hvcnum (8 * numarg)
+let hvc_to_num func = match Pkvm_c_constants.smccc_func_number func with
+  | -1 -> failwith "hvc: host smccc function has unknown number"
+  | n  -> n
 
-let hvc (type a): a host_smccc_func -> a = function
-| Pkvm_host_share_hyp x ->
-    ioctl_p_wr pkvm (proxy_ioctl 13 1) int64 x |> returns_0
-| Pkvm_host_unshare_hyp x ->
-    ioctl_p_wr pkvm (proxy_ioctl 14 1) int64 x |> returns_0
-| Pkvm_host_reclaim_page x ->
-    ioctl_p_wr pkvm (proxy_ioctl 15 1) int64 x |> returns_0
-| Pkvm_host_map_guest (phys, gphys) ->
-    ioctl_p_wr_vec pkvm (proxy_ioctl 16 2) int64 [|phys; gphys|] |> returns_0
-| Kvm_vcpu_run vcpu_kaddr ->
-    ioctl_p_wr pkvm (proxy_ioctl 18 1) int64 vcpu_kaddr
-| Pkvm_init_vm (host, hyp, pgd, last_ran) ->
-    ioctl_p_wr_vec pkvm (proxy_ioctl 22 4) int64 [|host; hyp; pgd; last_ran|]
-| Pkvm_init_vcpu (hdl, host, hyp) ->
-    let hdl = Int64.of_int hdl in
-    ioctl_p_wr_vec pkvm (proxy_ioctl 23 3) int64 [|hdl; host; hyp|] |> returns_0
-| Pkvm_teardown_vm hdl ->
-    ioctl_p_wr pkvm (proxy_ioctl 24 1) int64 (Int64.of_int hdl) |> ignore
-| Pkvm_vcpu_load (hdl, idx, hcr_el2) ->
-    let hdl, idx = Int64.(of_int hdl, of_int idx) in
-    ioctl_p_wr_vec pkvm (proxy_ioctl 25 3) int64 [| hdl; idx; hcr_el2 |] |> ignore
-| Pkvm_vcpu_put ->
-    ioctl_0 pkvm (proxy_ioctl 26 0) |> returns_0
-| Pkvm_vcpu_sync_state ->
-    ioctl_0 pkvm (proxy_ioctl 27 0) |> returns_0
-| _ -> failwith "hvc: host smccc function not implemented"
+let proxy_ioctl func numarg = _IOW 'h' (hvc_to_num func) (8 * numarg)
 
-let hvc func = try hvc func with Proxy err -> raise (HVC err)
+let hvc (type a): a host_smccc_func -> a = fun func ->
+  try match func with
+  | Pkvm_host_share_hyp x ->
+      ioctl_p_wr pkvm (proxy_ioctl func 1) int64 x |> returns_0
+  | Pkvm_host_unshare_hyp x ->
+      ioctl_p_wr pkvm (proxy_ioctl func 1) int64 x |> returns_0
+  | Pkvm_host_reclaim_page x ->
+      ioctl_p_wr pkvm (proxy_ioctl func 1) int64 x |> returns_0
+  | Pkvm_host_map_guest (phys, gphys) ->
+      ioctl_p_wr_vec pkvm (proxy_ioctl func 2) int64 [|phys; gphys|] |> returns_0
+  | Kvm_vcpu_run vcpu_kaddr ->
+      ioctl_p_wr pkvm (proxy_ioctl func 1) int64 vcpu_kaddr
+  | Pkvm_init_vm (host, hyp, pgd, last_ran) ->
+      ioctl_p_wr_vec pkvm (proxy_ioctl func 4) int64 [|host; hyp; pgd; last_ran|]
+  | Pkvm_init_vcpu (hdl, host, hyp) ->
+      let hdl = Int64.of_int hdl in
+      ioctl_p_wr_vec pkvm (proxy_ioctl func 3) int64 [|hdl; host; hyp|] |> returns_0
+  | Pkvm_teardown_vm hdl ->
+      ioctl_p_wr pkvm (proxy_ioctl func 1) int64 (Int64.of_int hdl) |> ignore
+  | Pkvm_vcpu_load (hdl, idx, hcr_el2) ->
+      let hdl, idx = Int64.(of_int hdl, of_int idx) in
+      ioctl_p_wr_vec pkvm (proxy_ioctl func 3) int64 [| hdl; idx; hcr_el2 |] |> ignore
+  | Pkvm_vcpu_put ->
+      ioctl_0 pkvm (proxy_ioctl func 0) |> returns_0
+  | Pkvm_vcpu_sync_state ->
+      ioctl_0 pkvm (proxy_ioctl func 0) |> returns_0
+  | _ -> failwith "hvc: host smccc function not implemented"
+  with Proxy err -> raise (HVC err)
 
 type alloc_type = VMALLOC | PAGES_EXACT (* Order! *)
 let alloc (a: alloc_type) = _IO 'a' (Obj.magic a)

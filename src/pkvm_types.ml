@@ -1,4 +1,7 @@
-(** Host hypercalls. `enum __kvm_host_smccc_func`, and their ioctl arguments. **)
+(* Host hypercalls. `enum __kvm_host_smccc_func`, and their ioctl arguments.
+ *
+ * Keep in sync with `hypercalls.h`.
+ *)
 type _ host_smccc_func =
 
 (* Hypercalls available only prior to pKVM finalisation *)
@@ -32,5 +35,4 @@ type _ host_smccc_func =
   | Pkvm_vcpu_load         : int * int * int64 -> unit host_smccc_func
   | Pkvm_vcpu_put          : unit host_smccc_func
   | Pkvm_vcpu_sync_state   : unit host_smccc_func
-
 

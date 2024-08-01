@@ -5,9 +5,13 @@
   (public_name pkvm-proxy)
   (synopsis "pKVM userspace proxy")
   (wrapped false)
-  (private_modules pkvm_types)
+  (private_modules pkvm_c_constants pkvm_types)
   (foreign_stubs
     (language c)
     (names pkvm-proxy)
     (flags (:standard -Wall -Wextra -O3)))
   (libraries unix bigarray fmt logs fmt.tty logs.fmt))
+
+(rule
+  (action
+   (with-stdout-to pkvm_c_constants.ml (run generators/constants.exe))))
