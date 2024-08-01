@@ -5,6 +5,7 @@
   (public_name pkvm-proxy)
   (synopsis "pKVM userspace proxy")
   (wrapped false)
+  (private_modules pkvm_types)
   (foreign_stubs
     (language c)
     (names pkvm-proxy)
