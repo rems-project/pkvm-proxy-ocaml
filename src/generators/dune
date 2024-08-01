@@ -1,0 +1,7 @@
+(rule
+  (target constants.exe)
+  (deps ../hypercalls.h
+        ../pkvm-proxy.h
+        constants.c)
+  (action
+    (run cc constants.c -o constants.exe)))
