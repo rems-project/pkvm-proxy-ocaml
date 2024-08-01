@@ -12,17 +12,6 @@
 
 #include "pkvm-proxy.h"
 
-CAMLprim value caml_sizes(void) {
-  CAMLparam0();
-  CAMLlocal1(res);
-  res = caml_alloc_tuple(4);
-  Store_field(res, 0, Val_long(sizeof(void *)));
-  Store_field(res, 1, Val_long(sizeof(int)));
-  Store_field(res, 2, Val_long(sizeof(__u64)));
-  Store_field(res, 3, Val_long(sizeof(struct hprox_memcache)));
-  CAMLreturn(res);
-}
-
 static void caml_pkvm_proxy_error(int errcode) {
   CAMLparam0();
   CAMLlocal1(err);

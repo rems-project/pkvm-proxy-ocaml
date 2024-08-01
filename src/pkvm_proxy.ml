@@ -1,5 +1,6 @@
 open Bigarray
 include Pkvm_types
+open Pkvm_c_constants
 open Pkvm_proxy_utils
 
 module Log = (val Logs.(Src.create "Pkvm_proxy" |> src_log))
@@ -28,11 +29,6 @@ let _ = Printexc.register_printer @@ function
   | _ -> None
 
 type ('a, 'b) c_array = ('a, 'b, Bigarray.c_layout) Array1.t
-
-external sizes : unit -> int array = "caml_sizes"
-let sizeof___u64, sizeof_int, sizeof_void_p, sizeof_memcache =
-  let ss = sizes() in
-  ss.(0), ss.(1), ss.(2), ss.(3)
 
 type ioc_dir = IOC_NONE | IOC_WRITE | IOC_READ | IOC_READ_WRITE (* Order is important! *)
 external _IOC : ioc_dir -> char -> int -> int -> int = "caml__IOC" [@@noalloc]
@@ -124,7 +120,7 @@ let struct_kvm_vcpu_size       = ioctl_0  pkvm (_IO 's' 4)
 let struct_kvm_vcpu_get_offset = ioctl_64 pkvm (_IO 's' 5)
 let hyp_vcpu_size              = ioctl_0  pkvm (_IO 's' 6)
 
-let memcache_topup n = _IOWR 'm' n sizeof_memcache
+let memcache_topup n = _IOWR 'm' n sizeof_hprox_memcache
 let topup_hyp_memcache ptr min_pages = ioctl_p pkvm (memcache_topup min_pages) ptr |> returns_0
 let free_hyp_memcache ptr = topup_hyp_memcache ptr 0
 
@@ -152,7 +148,7 @@ let ( .@[]<- ) (type a) (rg : a region) (F (off, _, w) : (a, _) field) v = w (La
 (* memcache is represented by a (bigarray-wrapped) pointer; offset computation
    corresponds to extracting the array slice. *)
 type memcache = bigstring
-let read_memcache s i = Array1.sub s i sizeof_memcache
+let read_memcache s i = Array1.sub s i sizeof_hprox_memcache
 
 type registers = { regs : int64 array; sp : int64; pc : int64; pstate : int64; }
 
