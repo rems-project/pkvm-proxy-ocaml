@@ -36,7 +36,7 @@ type _ host_smccc_func =
   | Pkvm_init_vm           : int64 * int64 * int64 * int64 -> int host_smccc_func
   | Pkvm_init_vcpu         : int * int64 * int64 -> unit host_smccc_func
   | Pkvm_teardown_vm       : int -> unit host_smccc_func
-  | Pkvm_vcpu_load         : int * int * int64 -> unit host_smccc_func
+  | Pkvm_vcpu_load         : int * int * int64 -> int host_smccc_func
   | Pkvm_vcpu_put          : unit host_smccc_func
   | Pkvm_vcpu_sync_state   : unit host_smccc_func
 

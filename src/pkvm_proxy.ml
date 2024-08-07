@@ -92,7 +92,7 @@ let hvc (type a): a host_smccc_func -> a = fun func ->
       ioctl_p_wr pkvm (proxy_ioctl func 1) int64 (Int64.of_int hdl) |> ignore
   | Pkvm_vcpu_load (hdl, idx, hcr_el2) ->
       let hdl, idx = Int64.(of_int hdl, of_int idx) in
-      ioctl_p_wr_vec pkvm (proxy_ioctl func 3) int64 [| hdl; idx; hcr_el2 |] |> ignore
+      ioctl_p_wr_vec pkvm (proxy_ioctl func 3) int64 [| hdl; idx; hcr_el2 |]
   | Pkvm_vcpu_put ->
       ioctl_0 pkvm (proxy_ioctl func 0) |> returns_0
   | Pkvm_vcpu_sync_state ->
@@ -377,7 +377,7 @@ let init_vcpu vm idx =
   Log.debug (fun k -> k "init_vcpu@ %d@ %d@ -> %a" vm.handle idx Region.pp host_vcpu);
   { idx; mem = host_vcpu; vm }
 
-let vcpu_load vcpu = hvc (Pkvm_vcpu_load (vcpu.vm.handle, vcpu.idx, 0L))
+let vcpu_load vcpu = hvc (Pkvm_vcpu_load (vcpu.vm.handle, vcpu.idx, 0L)) |> ignore
 let vcpu_put () = hvc Pkvm_vcpu_put
 let vcpu_set_dirty vcpu = vcpu.mem.@[vcpu_iflags] <- 0x80
 let vcpu_run vcpu = hvc (Kvm_vcpu_run vcpu.mem.kaddr)
