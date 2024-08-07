@@ -264,9 +264,8 @@ module Region = struct
     Log.debug (fun k -> k "Region.free %a" pp reg);
     alloc_free reg.fd
 
-  let k_release = release
   (* Note — first access to mmaped memory clears it. *)
-  let alloc ?init ?(release = true) size =
+  let alloc ?init ?release:(released = true) size =
     let fd    = alloc_region PAGES_EXACT size in
     let kaddr = alloc_kaddr fd
     and phys  = alloc_phys fd
@@ -279,7 +278,7 @@ module Region = struct
           Bigstring.blit_from_string s (Lazy.force mmap)
             ~n:(min (String.length s) size)
       | None -> () );
-    if release then k_release res;
+    if released then release res;
     res
 end
 
@@ -322,10 +321,10 @@ let init_vm ?(vcpus = 1) ?(protected = true) () =
   and pgd      = Region.alloc ~release pgd_size
   and last_ran = Region.alloc ~release (max_vm_vcpus * sizeof_int) in
 
-  host_share_hyp host_kvm;
-
   host_kvm.@[arch_pkvm_enabled] <- protected;
   host_kvm.@[created_vcpus] <- Int32.of_int vcpus;
+
+  host_share_hyp host_kvm;
   let handle = hvc (Pkvm_init_vm (host_kvm.kaddr, hyp_kvm.kaddr, pgd.kaddr, last_ran.kaddr)) in
 
   Log.debug (fun k -> k "init_vm ->@ %d@ %a" handle Region.pp host_kvm);
@@ -348,10 +347,10 @@ let init_vcpu vm idx =
   let host_vcpu = Region.alloc ~release struct_kvm_vcpu_size
   and hyp_vcpu  = Region.alloc ~release (hyp_vcpu_size + vm.vcpus * sizeof_void_p) in
 
-  host_share_hyp host_vcpu;
-
   host_vcpu.@[vcpu_idx] <- Int32.of_int idx;
   host_vcpu.@[vcpu_hcr_el2] <- Int64.(1L lsl 31);
+
+  host_share_hyp host_vcpu;
   hvc (Pkvm_init_vcpu (vm.handle, host_vcpu.kaddr, hyp_vcpu.kaddr));
 
   Log.debug (fun k -> k "init_vcpu@ %d@ %d@ -> %a" vm.handle idx Region.pp host_vcpu);
