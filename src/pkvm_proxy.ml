@@ -30,12 +30,8 @@ let _ = Printexc.register_printer @@ function
 
 type ('a, 'b) c_array = ('a, 'b, Bigarray.c_layout) Array1.t
 
-type ioc_dir = IOC_NONE | IOC_WRITE | IOC_READ | IOC_READ_WRITE (* Order is important! *)
-external _IOC : ioc_dir -> char -> int -> int -> int = "caml__IOC" [@@noalloc]
-
-external ioctl_0  : Unix.file_descr -> int -> int = "caml_pkvm_ioctl"
-external ioctl_64 : Unix.file_descr -> int -> int -> int = "caml_pkvm_ioctl_long"
-external ioctl_p  : Unix.file_descr -> int -> ('a, 'b) c_array -> int = "caml_pkvm_ioctl_ptr"
+external _ioctl  : Unix.file_descr -> int -> ('a, 'b) c_array -> int = "caml_pkvm_ioctl"
+external _ioctl_64 : Unix.file_descr -> int -> int -> int = "caml_pkvm_ioctl_immediate"
 
 external super_unsafe_ba_mmap : Unix.file_descr -> int -> (char, int8_unsigned_elt) c_array = "caml_super_unsafe_ba_mmap"
 external ba_munmap : (char, int8_unsigned_elt) c_array -> unit = "caml_ba_munmap"
@@ -43,85 +39,69 @@ external bzero : ('a, 'b) c_array -> unit = "caml_ba_bzero"
 
 (** ioctls **)
 
-(* Unlike in C, the size argument `sz` is not a string representing the type,
-   but the actual sizeof() that type. *)
-let _IO   ty nr    = _IOC IOC_NONE ty nr 0
-let _IOR  ty nr sz = _IOC IOC_READ ty nr sz
-let _IOW  ty nr sz = _IOC IOC_WRITE ty nr sz
-let _IOWR ty nr sz = _IOC IOC_READ_WRITE ty nr sz
+let ioc dir ty nr size =
+  ((match dir with `None -> 0 | `Wr -> 1 | `Rd -> 2 | `RdWr -> 3) lsl 30) lor
+  ((size land 0x3fff) lsl 16) lor (Char.code ty lsl 8) lor (nr land 0xff)
+
+let ioctl fd dir ty nr ba = _ioctl fd (ioc dir ty nr (Array1.size_in_bytes ba)) ba
+let ioctl_64 fd ty nr = _ioctl_64 fd (ioc `None ty nr 0)
 
 let returns_0 x = if x <> 0 then Fmt.failwith "ioctl: expected 0 but got %d" x
 
-let ioctl_p_wr fd n k v =
-  let p = Array1.create k c_layout 1 in
-  p.{0} <- v;
-  ioctl_p fd n p
+let _empty_int64 = Array1.create int64 c_layout 0
+let ioctl_io fd ty nr = ioctl fd `None ty nr _empty_int64
+let ioctl_ior fd ty nr kind =
+  let ba = Array1.create kind c_layout 1 in
+  ioctl fd `Rd ty nr ba |> returns_0;
+  ba.{0}
 
-let ioctl_p_wr_vec fd n k vs =
-  ioctl_p fd n (Array1.of_array k c_layout vs)
-
-let ioctl_p_rd fd n k =
-  let p = Array1.create k c_layout 1 in
-  ioctl_p fd n p |> returns_0;
-  p.{0}
-
-let hvc_to_num func = match Pkvm_c_constants.smccc_func_number func with
-  | None -> failwith "hvc: host smccc function has unknown number"
-  | Some n -> n
-
-let proxy_ioctl func numarg = _IOW 'h' (hvc_to_num func) (8 * numarg)
+let smccc_func_number func = match Pkvm_c_constants.smccc_func_number func with
+| None -> failwith "hvc: host smccc function not implemented (unknown number)"
+| Some nr -> nr
 
 let hvc (type a): a host_smccc_func -> a = fun func ->
+  let open Int64 in
+  let nr = smccc_func_number func in
+  let hvc_ioctl = function
+  | [||] -> ioctl pkvm `Wr 'h' nr _empty_int64
+  | xs   -> ioctl pkvm `Wr 'h' nr (Array1.of_array int64 c_layout xs)
+  in
   try match func with
-  | Pkvm_host_share_hyp x ->
-      ioctl_p_wr pkvm (proxy_ioctl func 1) int64 x |> returns_0
-  | Pkvm_host_unshare_hyp x ->
-      ioctl_p_wr pkvm (proxy_ioctl func 1) int64 x |> returns_0
-  | Pkvm_host_reclaim_page x ->
-      ioctl_p_wr pkvm (proxy_ioctl func 1) int64 x |> returns_0
-  | Pkvm_host_map_guest (phys, gphys) ->
-      ioctl_p_wr_vec pkvm (proxy_ioctl func 2) int64 [|phys; gphys|] |> returns_0
-  | Kvm_vcpu_run vcpu_kaddr ->
-      ioctl_p_wr pkvm (proxy_ioctl func 1) int64 vcpu_kaddr
-  | Pkvm_init_vm (host, hyp, pgd, last_ran) ->
-      ioctl_p_wr_vec pkvm (proxy_ioctl func 4) int64 [|host; hyp; pgd; last_ran|]
-  | Pkvm_init_vcpu (hdl, host, hyp) ->
-      let hdl = Int64.of_int hdl in
-      ioctl_p_wr_vec pkvm (proxy_ioctl func 3) int64 [|hdl; host; hyp|] |> returns_0
-  | Pkvm_teardown_vm hdl ->
-      ioctl_p_wr pkvm (proxy_ioctl func 1) int64 (Int64.of_int hdl) |> ignore
-  | Pkvm_vcpu_load (hdl, idx, hcr_el2) ->
-      let hdl, idx = Int64.(of_int hdl, of_int idx) in
-      ioctl_p_wr_vec pkvm (proxy_ioctl func 3) int64 [| hdl; idx; hcr_el2 |]
-  | Pkvm_vcpu_put ->
-      ioctl_0 pkvm (proxy_ioctl func 0) |> returns_0
-  | Pkvm_vcpu_sync_state ->
-      ioctl_0 pkvm (proxy_ioctl func 0) |> returns_0
+  | Pkvm_host_share_hyp x                   -> hvc_ioctl [|x|] |> returns_0
+  | Pkvm_host_unshare_hyp x                 -> hvc_ioctl [|x|] |> returns_0
+  | Pkvm_host_reclaim_page x                -> hvc_ioctl [|x|] |> returns_0
+  | Pkvm_host_map_guest (phys, gphys)       -> hvc_ioctl [|phys; gphys|] |> returns_0
+  | Kvm_vcpu_run vcpu_kaddr                 -> hvc_ioctl [|vcpu_kaddr|]
+  | Pkvm_init_vm (host, hyp, pgd, last_ran) -> hvc_ioctl [|host; hyp; pgd; last_ran|]
+  | Pkvm_init_vcpu (hdl, host, hyp)         -> hvc_ioctl [|of_int hdl; host; hyp|] |> returns_0
+  | Pkvm_teardown_vm hdl                    -> hvc_ioctl [|of_int hdl|] |> returns_0
+  | Pkvm_vcpu_load (hdl, idx, hcr_el2)      -> hvc_ioctl [|of_int hdl; of_int idx; hcr_el2|]
+  | Pkvm_vcpu_put                           -> hvc_ioctl [||] |> returns_0
+  | Pkvm_vcpu_sync_state                    -> hvc_ioctl [||] |> returns_0
   | _ -> failwith "hvc: host smccc function not implemented"
   with Proxy err -> raise (HVC err)
 
-type alloc_type = VMALLOC | PAGES_EXACT (* Order! *)
-let alloc (a: alloc_type) = _IO 'a' (Obj.magic a)
-
 let fd_of_int : int -> Unix.file_descr = Obj.magic
 let int_of_fd : Unix.file_descr -> int = Obj.magic
-let alloc_pages sz = ioctl_64 pkvm (alloc PAGES_EXACT) sz |> fd_of_int
 
-let alloc_kaddr   fd = ioctl_p_rd fd (_IOR 'A' 0 sizeof___u64) int64
-let alloc_phys    fd = ioctl_p_rd fd (_IOR 'A' 1 sizeof___u64) int64
-let alloc_release fd = ioctl_0    fd (_IO  'A' 2) |> returns_0
-let alloc_free    fd = ioctl_0    fd (_IO  'A' 3) |> returns_0
+type alloc_type = VMALLOC | PAGES_EXACT
+let int_of_alloc_type = function VMALLOC -> 0 | PAGES_EXACT -> 1
+let alloc_region ty sz = ioctl_64 pkvm 'a' (int_of_alloc_type ty) sz |> fd_of_int
 
-let struct_kvm_size            = ioctl_0  pkvm (_IO 's' 0)
-let struct_kvm_get_offset      = ioctl_64 pkvm (_IO 's' 1)
-let hyp_vm_size                = ioctl_0  pkvm (_IO 's' 2)
-let pgd_size                   = ioctl_0  pkvm (_IO 's' 3)
-let struct_kvm_vcpu_size       = ioctl_0  pkvm (_IO 's' 4)
-let struct_kvm_vcpu_get_offset = ioctl_64 pkvm (_IO 's' 5)
-let hyp_vcpu_size              = ioctl_0  pkvm (_IO 's' 6)
+let alloc_kaddr   fd = ioctl_ior fd 'A' 0 int64
+let alloc_phys    fd = ioctl_ior fd 'A' 1 int64
+let alloc_release fd = ioctl_io  fd 'A' 2 |> returns_0
+let alloc_free    fd = ioctl_io  fd 'A' 3 |> returns_0
 
-let memcache_topup n = _IOWR 'm' n sizeof_hprox_memcache
-let topup_hyp_memcache ptr min_pages = ioctl_p pkvm (memcache_topup min_pages) ptr |> returns_0
+let struct_kvm_size            = ioctl_io pkvm 's' 0
+let struct_kvm_get_offset      = ioctl_64 pkvm 's' 1
+let hyp_vm_size                = ioctl_io pkvm 's' 2
+let pgd_size                   = ioctl_io pkvm 's' 3
+let struct_kvm_vcpu_size       = ioctl_io pkvm 's' 4
+let struct_kvm_vcpu_get_offset = ioctl_64 pkvm 's' 5
+let hyp_vcpu_size              = ioctl_io pkvm 's' 6
+
+let topup_hyp_memcache ptr min_pages = ioctl pkvm `Wr 'm' min_pages ptr |> returns_0
 let free_hyp_memcache ptr = topup_hyp_memcache ptr 0
 
 (** Regions **)
@@ -287,7 +267,7 @@ module Region = struct
   let k_release = release
   (* Note — first access to mmaped memory clears it. *)
   let alloc ?init ?(release = true) size =
-    let fd    = alloc_pages size in
+    let fd    = alloc_region PAGES_EXACT size in
     let kaddr = alloc_kaddr fd
     and phys  = alloc_phys fd
     and mmap  = lazy ( let p = super_unsafe_ba_mmap fd size in bzero p; p ) in

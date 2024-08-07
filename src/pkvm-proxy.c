@@ -25,32 +25,18 @@ static void caml_pkvm_proxy_error(int errcode) {
   CAMLnoreturn;
 }
 
-static inline int __ioc_wrap(int res) {
+CAMLprim value caml_pkvm_ioctl (value fd, value req, value arg) {
+  CAMLparam3(fd, req, arg);
+  int res = ioctl(Long_val(fd), Long_val(req), Caml_ba_data_val(arg));
   if (res < 0) caml_pkvm_proxy_error(errno);
-  return Val_long(res);
+  CAMLreturn(Val_long(res));
 }
 
-CAMLprim value caml_pkvm_ioctl (value fd, value req) {
-  CAMLparam2(fd, req);
-  CAMLreturn(__ioc_wrap(ioctl(Long_val(fd), Long_val(req))));
-}
-
-CAMLprim value caml_pkvm_ioctl_long (value fd, value req, value arg) {
+CAMLprim value caml_pkvm_ioctl_immediate (value fd, value req, value arg) {
   CAMLparam3(fd, req, arg);
-  CAMLreturn(__ioc_wrap(ioctl(Long_val(fd), Long_val(req), Long_val(arg))));
-}
-
-CAMLprim value caml_pkvm_ioctl_ptr (value fd, value req, value arg) {
-  CAMLparam3(fd, req, arg);
-  CAMLreturn(__ioc_wrap(ioctl(Long_val(fd), Long_val(req), Caml_ba_data_val(arg))));
-}
-
-/* Assumes _IOC_{NONE,WRITE,READ} haven't been redefined by arch, since we use
- * constructor indices.
- */
-CAMLprim value caml__IOC(value dir, value type, value nr, value size) {
-  CAMLparam4(dir, type, nr, size);
-  CAMLreturn(Val_long(_IOC(Long_val(dir), Long_val(type), Long_val(nr), Long_val(size))));
+  int res = ioctl(Long_val(fd), Long_val(req), Long_val(arg));
+  if (res < 0) caml_pkvm_proxy_error(errno);
+  CAMLreturn(Val_long(res));
 }
 
 extern value caml_unix_mapped_alloc(int, int, void *, intnat *);
