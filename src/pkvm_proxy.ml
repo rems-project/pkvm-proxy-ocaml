@@ -66,8 +66,8 @@ let ioctl_p_rd fd n k =
   p.{0}
 
 let hvc_to_num func = match Pkvm_c_constants.smccc_func_number func with
-  | -1 -> failwith "hvc: host smccc function has unknown number"
-  | n  -> n
+  | None -> failwith "hvc: host smccc function has unknown number"
+  | Some n -> n
 
 let proxy_ioctl func numarg = _IOW 'h' (hvc_to_num func) (8 * numarg)
 

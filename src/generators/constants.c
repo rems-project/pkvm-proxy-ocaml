@@ -28,9 +28,9 @@ int main(void) {
   printf("let smccc_func_number : type a. a host_smccc_func -> _ = function\n");
   for_each_hcall(name, num)
     name[0] = toupper(name[0]);
-    printf("| %s _ -> %d\n", name, num);
+    printf("| %s _ -> Some %d\n", name, num);
   endfor_each_hcall
-  printf("| _ -> -1\n");
+  printf("| _ -> None\n");
   printf("[@@warning \"-28\"]\n");
 
   return 0;
