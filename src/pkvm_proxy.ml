@@ -31,7 +31,7 @@ let _ = Printexc.register_printer @@ function
 type ('a, 'b) c_array = ('a, 'b, Bigarray.c_layout) Array1.t
 
 external _ioctl  : Unix.file_descr -> int -> ('a, 'b) c_array -> int = "caml_pkvm_ioctl"
-external _ioctl_64 : Unix.file_descr -> int -> int -> int = "caml_pkvm_ioctl_immediate"
+external _ioctl_int : Unix.file_descr -> int -> int -> int = "caml_pkvm_ioctl_immediate"
 
 external super_unsafe_ba_mmap : Unix.file_descr -> int -> (char, int8_unsigned_elt) c_array = "caml_super_unsafe_ba_mmap"
 external ba_munmap : (char, int8_unsigned_elt) c_array -> unit = "caml_ba_munmap"
@@ -44,16 +44,17 @@ let ioc dir ty nr size =
   ((size land 0x3fff) lsl 16) lor (Char.code ty lsl 8) lor (nr land 0xff)
 
 let ioctl fd dir ty nr ba = _ioctl fd (ioc dir ty nr (Array1.size_in_bytes ba)) ba
-let ioctl_64 fd ty nr = _ioctl_64 fd (ioc `None ty nr 0)
+let ioctl_int fd ty nr = _ioctl_int fd (ioc `None ty nr 0)
 
 let returns_0 x = if x <> 0 then Fmt.failwith "ioctl: expected 0 but got %d" x
 
-let _empty_int64 = Array1.create int64 c_layout 0
-let ioctl_io fd ty nr = ioctl fd `None ty nr _empty_int64
+let ioctl_io fd ty nr = ioctl_int fd ty nr 0
 let ioctl_ior fd ty nr kind =
   let ba = Array1.create kind c_layout 1 in
   ioctl fd `Rd ty nr ba |> returns_0;
   ba.{0}
+
+let _empty_int64 = Array1.create int64 c_layout 0
 
 let smccc_func_number func = match Pkvm_c_constants.smccc_func_number func with
 | None -> failwith "hvc: host smccc function not implemented (unknown number)"
@@ -86,23 +87,25 @@ let int_of_fd : Unix.file_descr -> int = Obj.magic
 
 type alloc_type = VMALLOC | PAGES_EXACT
 let int_of_alloc_type = function VMALLOC -> 0 | PAGES_EXACT -> 1
-let alloc_region ty sz = ioctl_64 pkvm 'a' (int_of_alloc_type ty) sz |> fd_of_int
+let alloc_region ty sz = ioctl_int pkvm 'a' (int_of_alloc_type ty) sz |> fd_of_int
 
 let alloc_kaddr   fd = ioctl_ior fd 'A' 0 int64
 let alloc_phys    fd = ioctl_ior fd 'A' 1 int64
 let alloc_release fd = ioctl_io  fd 'A' 2 |> returns_0
 let alloc_free    fd = ioctl_io  fd 'A' 3 |> returns_0
 
-let struct_kvm_size            = ioctl_io pkvm 's' 0
-let struct_kvm_get_offset      = ioctl_64 pkvm 's' 1
-let hyp_vm_size                = ioctl_io pkvm 's' 2
-let pgd_size                   = ioctl_io pkvm 's' 3
-let struct_kvm_vcpu_size       = ioctl_io pkvm 's' 4
-let struct_kvm_vcpu_get_offset = ioctl_64 pkvm 's' 5
-let hyp_vcpu_size              = ioctl_io pkvm 's' 6
+let struct_kvm_size            = ioctl_io  pkvm 's' 0
+let struct_kvm_get_offset      = ioctl_int pkvm 's' 1
+let hyp_vm_size                = ioctl_io  pkvm 's' 2
+let pgd_size                   = ioctl_io  pkvm 's' 3
+let struct_kvm_vcpu_size       = ioctl_io  pkvm 's' 4
+let struct_kvm_vcpu_get_offset = ioctl_int pkvm 's' 5
+let hyp_vcpu_size              = ioctl_io  pkvm 's' 6
 
-let topup_hyp_memcache ptr min_pages = ioctl pkvm `Wr 'm' min_pages ptr |> returns_0
-let free_hyp_memcache ptr = topup_hyp_memcache ptr 0
+let topup_hyp_memcache ptr min_pages =
+  if min_pages < 1 then invalid_arg "topup_hyp_memcache" else
+  ioctl pkvm `Wr 'm' min_pages ptr |> returns_0
+let free_hyp_memcache ptr = ioctl pkvm `Wr 'm' 0 ptr |> returns_0
 
 (** Regions **)
 
@@ -274,11 +277,9 @@ module Region = struct
     let res = { fd; size; kaddr; phys; mmap; __xx = ignore } in
     Gc.finalise (fun r -> if Lazy.is_val r.mmap then ba_munmap (Lazy.force r.mmap)) res;
     Log.debug (fun k -> k "Region.alloc ->@ %a" pp res);
-    ( match init with
-      | Some s ->
-          Bigstring.blit_from_string s (Lazy.force mmap)
-            ~n:(min (String.length s) size)
-      | None -> () );
+    Option.fold init ~none:() ~some:(fun s ->
+      Bigstring.blit_from_string ~n:(String.length s |> min size) 
+        s (Lazy.force mmap));
     if released then release res;
     res
 end
@@ -306,11 +307,11 @@ let host_reclaim_region reg =
 let host_map_guest ?(memcache_topup = true) vcpu reg guest_phys =
   let open Int64 in
   let phys  = reg.phys lsr page_shift
-  and gphys = guest_phys lsr page_shift in
+  and gphys = guest_phys lsr page_shift
+  and mc = 5 * (reg.size // page_size) in
   Log.debug (fun k -> k "host_map_guest %a" Region.pp reg);
-  for_each_page reg.size @@ fun pg ->
-    if memcache_topup then topup_hyp_memcache (vcpu.mem.@[vcpu_memcache]) 5;
-    hvc (Pkvm_host_map_guest (phys + pg, gphys + pg))
+  if memcache_topup then topup_hyp_memcache vcpu.mem.@[vcpu_memcache] mc;
+  for_each_page reg.size @@ fun pg -> hvc (Pkvm_host_map_guest (phys + pg, gphys + pg))
 
 let max_vm_vcpus = 16
 

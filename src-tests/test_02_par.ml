@@ -37,8 +37,7 @@ let t_vcpu_load_put_par_2 = test "vcpu load+put parallel 2" @@ fun _ ->
   teardown_vm vm;
   Array.iter (function (Some vcpu) -> free_vcpu vcpu | _ -> assert false) vcpus
 
-let t_vcpu_load_conflict =
-  test "vcpu load on multiple threads" @@ fun _ ->
+let t_vcpu_load_conflict = test "vcpu load on multiple threads" @@ fun _ ->
   let vm = init_vm () in
   let vcpu = init_vcpu vm 0 in
   vcpu_load vcpu;

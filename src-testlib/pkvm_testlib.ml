@@ -138,8 +138,10 @@ type test = { f : unit -> unit; name : string; desc : string; }
 
 let test ?(desc = "<NO DESC>") name f = { name; desc; f = fun x -> ignore (f x) }
 
-let pp_test_ok = Fmt.(styled `Green @@ styled `Bold @@ styled `Italic string)
-let pp_test_err = Fmt.(styled `Red @@ styled `Bold @@ styled `Italic string)
+let pp_test = Fmt.(styled `Bold @@ styled `Italic string)
+let pp_test_ok = Fmt.styled `Green pp_test
+let pp_test_err = Fmt.styled `Red pp_test
+let pp_test_skip = Fmt.styled `Magenta pp_test
 
 let pp_t_start ppf (i, t) =
   Fmt.pf ppf "@.╭────────────────────@.│ start (#%d): %a@." i pp_test_ok t.name
@@ -151,7 +153,7 @@ let pp_exn ppf exn = Fmt.string ppf (Printexc.to_string exn)
 
 let run1 ?(select = fun _ -> true) ~index t =
   match select t.name with
-  | false -> Log.app (fun k -> k "@.== skip: %a@." pp_test_ok t.name)
+  | false -> Log.app (fun k -> k "@.== skip: %a@." pp_test_skip t.name)
   | true -> 
       Log.app (fun k -> k "%a" pp_t_start (index, t));
       match t.f () with
@@ -179,5 +181,4 @@ let main ?(want_cpus = 1) xs =
       Log.warn (fun k -> k "`%s': %s" cfg msg);
       fun _ -> true
   in
-  xs |> List.iteri (fun i test -> run1 ~select ~index:i test);
-  Log.app (fun k -> k "all done")
+  xs |> List.iteri (fun i test -> run1 ~select ~index:i test)
