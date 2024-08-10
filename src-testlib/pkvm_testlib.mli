@@ -39,4 +39,4 @@ val vcpu_run_expect : ?cond:vcpu_cond -> Pkvm_proxy.vcpu -> unit
 
 type test
 val test : ?desc:string -> string -> (unit -> 'a) -> test
-val main : test list -> unit
+val main : ?want_cpus:int -> test list -> unit

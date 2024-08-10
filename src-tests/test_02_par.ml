@@ -47,7 +47,7 @@ let t_vcpu_load_conflict =
   teardown_vm vm;
   free_vcpu vcpu
 
-let _ = main [
+let _ = main ~want_cpus:4 [
   t_vcpu_load_put_par_1
 ; t_vcpu_load_put_par_2
 ; t_vcpu_load_conflict

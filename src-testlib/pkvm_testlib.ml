@@ -160,12 +160,16 @@ let run1 ?(select = fun _ -> true) ~index t =
           Log.app (fun k -> k "%a" (pp_t_error pp_exn) (t, exn));
           exit 1
 
-let main xs =
+let main ?(want_cpus = 1) xs =
   Logs_threaded.enable ();
 
   Fmt_tty.setup_std_outputs ();
   Logs.set_reporter (Logs_fmt.reporter ());
   Logs.set_level ~all:true (Some Logs.Warning);
+
+  if cores < want_cpus then
+    Log.warn (fun k -> k "Test suite requires %d CPUs, but running on %d. Skipping." want_cpus cores)
+  else
 
   let select = match load_cfg () with
   | Ok (ll, f) ->
