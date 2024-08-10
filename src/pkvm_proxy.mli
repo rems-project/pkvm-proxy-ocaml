@@ -79,6 +79,9 @@ module Region : sig
   val addr : 'a region -> int64 * int64
   (** The kernel address, and the physical address, of the region. *)
 
+  val size : 'a region -> int
+  (** Region size, in bytes. *)
+
   val is_mapped : 'a region -> bool
   (** Did we [mmap] it? *)
 
