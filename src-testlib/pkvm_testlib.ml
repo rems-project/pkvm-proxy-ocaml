@@ -40,6 +40,9 @@ exception Assert
 exception Expected_failure
 
 let pkvm_assert = function false -> raise Assert | _ -> ()
+let pkvm_expect_proxy_error f x = match f x with
+| exception (Pkvm_proxy.Proxy _) -> ()
+| _ -> raise Expected_failure
 let pkvm_expect_error f x = match f x with
 | exception (Pkvm_proxy.HVC _) -> ()
 | _ -> raise Expected_failure

@@ -14,6 +14,7 @@ val cores : int
 (** Test assertions *)
 
 val pkvm_assert : bool -> unit
+val pkvm_expect_proxy_error : ('a -> 'b) -> 'a -> unit
 val pkvm_expect_error : ('a -> 'b) -> 'a -> unit
 
 (** Conditionally step VCPUs. **)
