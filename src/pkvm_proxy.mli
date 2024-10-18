@@ -28,9 +28,9 @@ type _ host_smccc_func =
   | Pkvm_host_unshare_hyp  : int64 -> unit host_smccc_func
   | Pkvm_host_reclaim_page : int64 -> unit host_smccc_func
   | Pkvm_host_map_guest    : int64 * int64 -> unit host_smccc_func
-  | Kvm_adjust_pc
+  | Kvm_adjust_pc          : int64 -> unit host_smccc_func
   | Kvm_vcpu_run           : int64 -> int host_smccc_func
-  | Kvm_timer_set_cntvoff
+  | Kvm_timer_set_cntvoff  : int64 -> unit host_smccc_func
   | Vgic_v3_save_vmcr_aprs
   | Vgic_v3_restore_vmcr_aprs
   | Pkvm_init_vm           : int64 * int64 * int64 * int64 -> int host_smccc_func
@@ -201,8 +201,11 @@ val vcpu_load : vcpu -> unit
 val vcpu_put : unit -> unit
 
 val vcpu_set_dirty : vcpu -> unit
+val vcpu_adjust_pc : vcpu -> unit
 val vcpu_run : vcpu -> int
 val vcpu_sync_state : unit -> unit
+
+val timer_set_cntvoff : int64 -> unit
 
 val topup_hyp_memcache : memcache -> int -> unit
 val free_hyp_memcache : memcache -> unit

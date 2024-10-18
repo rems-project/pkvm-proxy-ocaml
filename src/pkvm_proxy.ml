@@ -72,7 +72,9 @@ let hvc (type a): a host_smccc_func -> a = fun func ->
   | Pkvm_host_unshare_hyp x                 -> hvc_raw nr [|x|] |> returns_0
   | Pkvm_host_reclaim_page x                -> hvc_raw nr [|x|] |> returns_0
   | Pkvm_host_map_guest (phys, gphys)       -> hvc_raw nr [|phys; gphys|] |> returns_0
+  | Kvm_adjust_pc vcpu_kaddr                -> hvc_raw nr [|vcpu_kaddr|] |> ignore
   | Kvm_vcpu_run vcpu_kaddr                 -> hvc_raw nr [|vcpu_kaddr|]
+  | Kvm_timer_set_cntvoff cntvoff           -> hvc_raw nr [|cntvoff|] |> ignore
   | Pkvm_init_vm (host, hyp, pgd, last_ran) -> hvc_raw nr [|host; hyp; pgd; last_ran|]
   | Pkvm_init_vcpu (hdl, host, hyp)         -> hvc_raw nr [|of_int hdl; host; hyp|] |> returns_0
   | Pkvm_teardown_vm hdl                    -> hvc_raw nr [|of_int hdl|] |> returns_0
@@ -218,9 +220,9 @@ let pp_host_smccc_func (type a) ppf: a host_smccc_func -> _ = function
 | Pkvm_host_unshare_hyp x            -> Fmt.pf ppf "PKVM_HOST_UNSHARE_HYP (0x%Lx)" x
 | Pkvm_host_reclaim_page x           -> Fmt.pf ppf "PKVM_HOST_RECLAIM_PAGE (0x%Lx)" x
 | Pkvm_host_map_guest (phys, gphys)  -> Fmt.pf ppf "PKVM_HOST_MAP_GUEST (@[0x%Lx,@ 0x%Lx@])" phys gphys
-| Kvm_adjust_pc                      -> Fmt.pf ppf "KVM_ADJUST_PC"
+| Kvm_adjust_pc vcpu_kaddr           -> Fmt.pf ppf "KVM_ADJUST_PC (0x%Lx)" vcpu_kaddr
 | Kvm_vcpu_run vcpu_kaddr            -> Fmt.pf ppf "KVM_VCPU_RUN (0x%Lx)" vcpu_kaddr
-| Kvm_timer_set_cntvoff              -> Fmt.pf ppf "KVM_TIMER_SET_CNTVOFF"
+| Kvm_timer_set_cntvoff cntvoff      -> Fmt.pf ppf "KVM_TIMER_SET_CNTVOFF (0x%Lx)" cntvoff
 | Vgic_v3_save_vmcr_aprs             -> Fmt.pf ppf "VGIC_V3_SAVE_VMCR_APRS"
 | Vgic_v3_restore_vmcr_aprs          -> Fmt.pf ppf "VGIC_V3_RESTORE_VMCR_APRS"
 | Pkvm_init_vm (host, hyp, pgd, ran) -> Fmt.pf ppf "PKVM_INIT_VM (@[0x%Lx,@ 0x%Lx,@ 0x%Lx,@ 0x%Lx@])" host hyp pgd ran
@@ -360,9 +362,13 @@ let init_vcpu ?(index_check = true) vm idx =
 
 let vcpu_load vcpu = hvc (Pkvm_vcpu_load (vcpu.vm.handle, vcpu.idx, 0L)) |> ignore
 let vcpu_put () = hvc Pkvm_vcpu_put
+
 let vcpu_set_dirty vcpu = vcpu.mem.@[vcpu_iflags] <- 0x80
+let vcpu_adjust_pc vcpu = hvc (Kvm_adjust_pc vcpu.mem.kaddr)
 let vcpu_run vcpu = hvc (Kvm_vcpu_run vcpu.mem.kaddr)
 let vcpu_sync_state () = hvc Pkvm_vcpu_sync_state
+
+let timer_set_cntvoff cntvoff = hvc (Kvm_timer_set_cntvoff cntvoff)
 
 let topup_vcpu_memcache vcpu = topup_hyp_memcache vcpu.mem.@[vcpu_memcache]
 
