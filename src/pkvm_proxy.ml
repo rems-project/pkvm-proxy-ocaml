@@ -56,6 +56,10 @@ let ioctl_ior fd ty nr kind =
 
 let _empty_int64 = Array1.create int64 c_layout 0
 
+let hvc_raw hvc_nr = function
+| [||] -> ioctl pkvm `Wr 'h' hvc_nr _empty_int64
+| xs   -> ioctl pkvm `Wr 'h' hvc_nr (Array1.of_array int64 c_layout xs)
+
 let smccc_func_number func = match Pkvm_c_constants.smccc_func_number func with
 | None -> failwith "hvc: host smccc function not implemented (unknown number)"
 | Some nr -> nr
@@ -63,22 +67,18 @@ let smccc_func_number func = match Pkvm_c_constants.smccc_func_number func with
 let hvc (type a): a host_smccc_func -> a = fun func ->
   let open Int64 in
   let nr = smccc_func_number func in
-  let hvc_ioctl = function
-  | [||] -> ioctl pkvm `Wr 'h' nr _empty_int64
-  | xs   -> ioctl pkvm `Wr 'h' nr (Array1.of_array int64 c_layout xs)
-  in
   try match func with
-  | Pkvm_host_share_hyp x                   -> hvc_ioctl [|x|] |> returns_0
-  | Pkvm_host_unshare_hyp x                 -> hvc_ioctl [|x|] |> returns_0
-  | Pkvm_host_reclaim_page x                -> hvc_ioctl [|x|] |> returns_0
-  | Pkvm_host_map_guest (phys, gphys)       -> hvc_ioctl [|phys; gphys|] |> returns_0
-  | Kvm_vcpu_run vcpu_kaddr                 -> hvc_ioctl [|vcpu_kaddr|]
-  | Pkvm_init_vm (host, hyp, pgd, last_ran) -> hvc_ioctl [|host; hyp; pgd; last_ran|]
-  | Pkvm_init_vcpu (hdl, host, hyp)         -> hvc_ioctl [|of_int hdl; host; hyp|] |> returns_0
-  | Pkvm_teardown_vm hdl                    -> hvc_ioctl [|of_int hdl|] |> returns_0
-  | Pkvm_vcpu_load (hdl, idx, hcr_el2)      -> hvc_ioctl [|of_int hdl; of_int idx; hcr_el2|]
-  | Pkvm_vcpu_put                           -> hvc_ioctl [||] |> returns_0
-  | Pkvm_vcpu_sync_state                    -> hvc_ioctl [||] |> returns_0
+  | Pkvm_host_share_hyp x                   -> hvc_raw nr [|x|] |> returns_0
+  | Pkvm_host_unshare_hyp x                 -> hvc_raw nr [|x|] |> returns_0
+  | Pkvm_host_reclaim_page x                -> hvc_raw nr [|x|] |> returns_0
+  | Pkvm_host_map_guest (phys, gphys)       -> hvc_raw nr [|phys; gphys|] |> returns_0
+  | Kvm_vcpu_run vcpu_kaddr                 -> hvc_raw nr [|vcpu_kaddr|]
+  | Pkvm_init_vm (host, hyp, pgd, last_ran) -> hvc_raw nr [|host; hyp; pgd; last_ran|]
+  | Pkvm_init_vcpu (hdl, host, hyp)         -> hvc_raw nr [|of_int hdl; host; hyp|] |> returns_0
+  | Pkvm_teardown_vm hdl                    -> hvc_raw nr [|of_int hdl|] |> returns_0
+  | Pkvm_vcpu_load (hdl, idx, hcr_el2)      -> hvc_raw nr [|of_int hdl; of_int idx; hcr_el2|]
+  | Pkvm_vcpu_put                           -> hvc_raw nr [||] |> returns_0
+  | Pkvm_vcpu_sync_state                    -> hvc_raw nr [||] |> returns_0
   | _ -> failwith "hvc: host smccc function not implemented"
   with Proxy err -> raise (HVC err)
 

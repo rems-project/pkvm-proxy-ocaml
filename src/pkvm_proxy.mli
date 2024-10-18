@@ -50,6 +50,9 @@ val hvc : 'a host_smccc_func -> 'a
 
     @raise Hvc *)
 
+val hvc_raw : int -> int64 array -> int
+(** [hvc_raw hypercall args] performs [hypercall] with [args]. All bets are off. *)
+
 (** {1 Memory regions} *)
 
 exception Proxy of Unix.error
