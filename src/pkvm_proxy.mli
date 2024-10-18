@@ -194,7 +194,7 @@ val host_reclaim_region : 'a region -> unit
 val init_vm : ?vcpus:int -> ?protected:bool -> unit -> vm
 val teardown_vm : vm -> unit
 
-val init_vcpu : vm -> int ->  vcpu
+val init_vcpu : ?index_check:bool -> vm -> int ->  vcpu
 val free_vcpu : vcpu -> unit
 
 val vcpu_load : vcpu -> unit

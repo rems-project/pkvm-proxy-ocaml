@@ -343,8 +343,8 @@ let free_vcpu vcpu =
   host_unshare_hyp vcpu.mem;
   Region.free vcpu.mem
 
-let init_vcpu vm idx =
-  if vm.vcpus <= idx then Fmt.invalid_arg "init_vcpu: cpu %d (max %d)" idx vm.vcpus;
+let init_vcpu ?(index_check = true) vm idx =
+  if index_check && vm.vcpus <= idx then Fmt.invalid_arg "init_vcpu: cpu %d (max %d)" idx vm.vcpus;
   let release = true in
   let host_vcpu = Region.alloc ~release struct_kvm_vcpu_size
   and hyp_vcpu  = Region.alloc ~release (hyp_vcpu_size + vm.vcpus * sizeof_void_p) in
