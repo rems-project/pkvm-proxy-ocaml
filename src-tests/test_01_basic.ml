@@ -38,15 +38,20 @@ let t_init_deinit_vcpus = test "init_vcpu + deinit, multiple" @@ fun _ ->
   free_vcpu vcpu1;
   free_vcpu vcpu2
 
-let t_init_vcpus_bad = test "init_vcpu out of order" @@ fun _ ->
-  let vm = init_vm ~vcpus:2 () in
-  pkvm_expect_error (init_vcpu vm) 1;
-  teardown_vm vm
-
 let t_vcpu_load_put = test "vcpu_load|put" @@ fun _ ->
   let vm = init_vm () in
   let vcpu = init_vcpu vm 0 in
   vcpu_load vcpu;
+  vcpu_put ();
+  teardown_vm vm;
+  free_vcpu vcpu
+
+let t_vcpu_sync_state = test "vcpu_sync_state" @@ fun _ ->
+  let vm = init_vm () in
+  let vcpu = init_vcpu vm 0 in
+  vcpu_sync_state ();
+  vcpu_load vcpu;
+  vcpu_sync_state ();
   vcpu_put ();
   teardown_vm vm;
   free_vcpu vcpu
@@ -93,6 +98,18 @@ let t_map_some_memcache = test "host_map_guest with some memcache" @@ fun _ ->
   host_reclaim_region mem;
   Region.free
 
+let t_adjust_pc = test "adjust_pc" @@ fun _ ->
+  let vm = init_vm () in
+  let vcpu = init_vcpu vm 0 in
+  vcpu_load vcpu;
+  vcpu_adjust_pc vcpu;
+  vcpu_put ();
+  teardown_vm vm;
+  free_vcpu vcpu
+
+let t_timer_set_cntvoff = test "timer_set_cntvoff" @@ fun _ ->
+  timer_set_cntvoff 0L
+
 let t_vcpu_run = test "vcpu_run" @@ fun _ ->
   let exe = Region.alloc 0x1000 ~init: {%asm|
     movz x30, 0xdead
@@ -132,9 +149,50 @@ let t_vcpu_run_n = test "vcpu_run_n" @@ fun _ ->
   host_reclaim_region exe;
   Region.free exe
 
+let t_vcpu_run_fpu = test "vcpu_run fpu" @@ fun _ ->
+  let exe = Region.alloc 0x1000 ~init: {%asm|
+    mrs x1, cpacr_el1
+    mov x0, #(3 << 20)
+    orr x0, x1, x0
+    msr cpacr_el1, x0
+    fmov d10, 1
+    fadd d10, d10, d10
+    movz x30, 0xdead
+    ldr x0, [x30]
+  |} in
+  let vm = init_vm () in
+  let vcpu = init_vcpu vm 0 in
+  vcpu_load vcpu;
+  host_map_guest vcpu exe 0x0L;
+  vcpu_run_expect vcpu ~cond:fault_at_0xdead;
+  vcpu_put ();
+  teardown_vm vm;
+  free_vcpu vcpu;
+  host_reclaim_region exe;
+  Region.free exe
+
 let t_guest_hvc_version = test "guest_hvc: version" @@ fun _ ->
   let exe = Region.alloc 0x1000 ~init: {%asm|
     movz w0, 0x8000, lsl 16
+    hvc 0
+    movz x30, 0xdead
+    ldr x0, [x30]
+  |} in
+  let vm = init_vm () in
+  let vcpu = init_vcpu vm 0 in
+  vcpu_load vcpu;
+  host_map_guest vcpu exe 0x0L;
+  vcpu_run_expect vcpu ~cond:fault_at_0xdead;
+  vcpu_put ();
+  teardown_vm vm;
+  free_vcpu vcpu;
+  host_reclaim_region exe;
+  Region.free exe
+
+let t_guest_hvc_nonsense = test "guest_hvc: nonsense" @@ fun _ ->
+  let exe = Region.alloc 0x1000 ~init: {%asm|
+    movz w0, 0xa0a0, lsl 16
+    movk w0, 0xfbfb
     hvc 0
     movz x30, 0xdead
     ldr x0, [x30]
@@ -213,14 +271,18 @@ let _ = main [
   t_init_teardown_vm;
   t_init_deinit_vcpu;
   t_init_deinit_vcpus;
-  t_init_vcpus_bad;
   t_vcpu_load_put;
+  t_vcpu_sync_state;
   t_map_unmap;
   t_map_no_memcache;
   t_map_some_memcache;
+  t_adjust_pc;
+  t_timer_set_cntvoff;
   t_vcpu_run;
   t_vcpu_run_n;
+  t_vcpu_run_fpu;
   t_guest_hvc_version;
+  t_guest_hvc_nonsense;
   t_guest_hvc_mem_share;
   t_guest_hvc_mem_unshare;
 ]
