@@ -1,0 +1,9 @@
+{
+  "loglevel": "info",
+  "run": {
+    "vcpu load+put parallel 1": true,
+    "vcpu load+put parallel 2": true,
+    "vcpu load on multiple threads": true
+  }
+}
+

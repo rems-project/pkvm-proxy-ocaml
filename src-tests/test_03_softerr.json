@@ -1,0 +1,23 @@
+{
+  "loglevel": "info",
+  "run": {
+    "lo hcall": true,
+    "hi hcall": true,
+    "init vm with no cpus": true,
+    "init nonexistent vcpu": true,
+    "init_vcpu out-of-order": true,
+    "load_vcpu reload": true,
+    "load_vcpu load overwrite": true,
+    "load_vcpu no vm handle": true,
+    "load_vcpu no bad index": true,
+    "vcpu_put twice": true,
+    "host_share_hyp twice": true,
+    "host_map_guest twice": true,
+    "host_map_guest no vcpu": true,
+    "host_share_hyp then host_map_guest": true,
+    "host_map_guest then host_share_hyp": true,
+    "host_map_guest addr clash": true
+  }
+}
+
+
