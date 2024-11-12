@@ -7,7 +7,7 @@ let t_low_hcall = test "lo hcall" @@ fun _ ->
   pkvm_expect_proxy_error (hvc_raw 1) [||];
   teardown_vm vm
 
-let t_hi_hcall = test "lo hcall" @@ fun _ ->
+let t_hi_hcall = test "hi hcall" @@ fun _ ->
   let vm = init_vm () in
   (* Hypercall number too large to exist. *)
   pkvm_expect_proxy_error (hvc_raw 93) [||];
