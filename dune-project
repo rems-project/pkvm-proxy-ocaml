@@ -11,7 +11,7 @@
  (synopsis "Library to issue pKVM hypercalls using pkvm-proxy")
  (description "Break VMs.")
  (depends
-  (ocaml (= 5.1.1))
+  (ocaml (>= 5.1.0))
   (fmt (>= 0.9.0))
   (logs (>= 0.7.0))))
 
