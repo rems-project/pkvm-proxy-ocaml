@@ -96,7 +96,7 @@ let t_map_some_memcache = test "host_map_guest with some memcache" @@ fun _ ->
   teardown_vm vm;
   free_vcpu vcpu;
   host_reclaim_region mem;
-  Region.free
+  Region.free mem
 
 let t_adjust_pc = test "adjust_pc" @@ fun _ ->
   let vm = init_vm () in
