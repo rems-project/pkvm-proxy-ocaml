@@ -1,21 +1,16 @@
 #include <sys/types.h>
-#include <linux/types.h>
-#include <linux/kvm.h>
 #include <sys/sysinfo.h>
 
+// From linux/types.h (down further includes)
+typedef unsigned long long __u64;
 
-/* XXX
- * This comes from linux/kvm.h, but only for aarch64. Mirrored here simply
- * to make it compile for x86_64.
- */
-#ifdef __x86_64__
+// From linux.kvm.h
 struct user_pt_regs {
-        __u64           regs[31];
-        __u64           sp;
-        __u64           pc;
-        __u64           pstate;
+	__u64		regs[31];
+	__u64		sp;
+	__u64		pc;
+	__u64		pstate;
 };
-#endif
 
 #define HPROX_HVC_TYPE 'h'
 #define HPROX_STRUCTS_TYPE 's'
