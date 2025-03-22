@@ -42,15 +42,25 @@ CAMLprim value caml_pkvm_ioctl_immediate (value fd, value req, value arg) {
 extern value caml_unix_mapped_alloc(int, int, void *, intnat *);
 
 /* XXX Works around hyp-proxy not implementing stat.
- * It's super unsafe because the fd size is provided as an argument and cannot
+ * It's _super unsafe_ because the fd size is provided as an argument, and cannot
  * be checked.
+ *
+ * unmapping:
+ * - `caml_unix_mapped_alloc` uses
+ *   `caml_ba_mapped_ops->caml_ba_mapped_finalize`, which calls `munmap`.
+ *   Unmap happens on finalisation and respects proxy arrays.
+ * - `caml_ba_alloc` uses `caml_ba_ops->caml_ba_finalize`, which does nothing if
+ *   `flags & CAML_BA_MANAGED_MASK == CAML_BA_EXTERNAL`.
+ *   Unmap must be handled from OCaml.
+ *
  */
 CAMLprim value caml_super_unsafe_ba_mmap(value fd, value size) {
   CAMLparam2(fd, size);
   intnat sz = Long_val(size);
-  void *addr = mmap(NULL, sz, PROT_READ|PROT_WRITE, MAP_SHARED, Long_val(fd), 0);
+  void *addr = mmap(NULL, sz, PROT_READ | PROT_WRITE, MAP_SHARED, Long_val(fd), 0);
   if (addr == (void *) MAP_FAILED) uerror("bad_map_file", Nothing);
-  CAMLreturn(caml_unix_mapped_alloc(CAML_BA_UINT8|CAML_BA_C_LAYOUT, 1, addr, &sz));
+  CAMLreturn(caml_unix_mapped_alloc(CAML_BA_UINT8 | CAML_BA_C_LAYOUT, 1, addr, &sz));
+  /* CAMLreturn(caml_ba_alloc(CAML_BA_UINT8 | CAML_BA_C_LAYOUT, 1, addr, &sz)); */
 }
 
 CAMLprim value caml_ba_munmap(value arr) {

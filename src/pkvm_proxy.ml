@@ -34,7 +34,7 @@ external _ioctl  : Unix.file_descr -> int -> ('a, 'b) c_array -> int = "caml_pkv
 external _ioctl_int : Unix.file_descr -> int -> int -> int = "caml_pkvm_ioctl_immediate"
 
 external super_unsafe_ba_mmap : Unix.file_descr -> int -> (char, int8_unsigned_elt) c_array = "caml_super_unsafe_ba_mmap"
-external ba_munmap : (char, int8_unsigned_elt) c_array -> unit = "caml_ba_munmap"
+external ba_munmap : (char, int8_unsigned_elt) c_array -> unit = "caml_ba_munmap" [@@warning "-32"]
 external bzero : ('a, 'b) c_array -> unit = "caml_ba_bzero"
 
 (** ioctls **)
@@ -277,7 +277,6 @@ module Region = struct
     and phys  = alloc_phys fd
     and mmap  = lazy ( let p = super_unsafe_ba_mmap fd size in bzero p; p ) in
     let res = { fd; size; kaddr; phys; mmap; __xx = ignore } in
-    Gc.finalise (fun r -> if Lazy.is_val r.mmap then ba_munmap (Lazy.force r.mmap)) res;
     Log.debug (fun k -> k "Region.alloc ->@ %a" pp res);
     Option.fold init ~none:() ~some:(fun s ->
       Bigstring.blit_from_string ~n:(String.length s |> min size) 
