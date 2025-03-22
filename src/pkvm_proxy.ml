@@ -266,9 +266,11 @@ module Region = struct
     Log.debug (fun k -> k "Region.release %a" pp reg);
     alloc_release reg.fd
 
+  (* Note — bigarrays are unmapped on finalisation. *)
   let free reg =
     Log.debug (fun k -> k "Region.free %a" pp reg);
-    alloc_free reg.fd
+    alloc_free reg.fd;
+    Unix.close reg.fd
 
   (* Note — first access to mmaped memory clears it. *)
   let alloc ?init ?release:(released = true) size =
