@@ -88,6 +88,8 @@ module Region : sig
   val is_mapped : 'a region -> bool
   (** Did we [mmap] it? *)
 
+  val bzero : 'a region -> unit
+
   val memory : 'a region -> bigstring
   (** Let's [mmap] it after all. (Idempotent.)
 

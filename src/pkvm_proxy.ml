@@ -256,6 +256,7 @@ module Region = struct
   let size reg = reg.size
   let is_mapped reg = Lazy.is_val reg.mmap
   let memory { mmap = lazy mmap; _ } = mmap
+  let bzero reg = bzero (memory reg)
 
   let pp ppf reg =
     Fmt.pf ppf "[region @[fd: %d,@ size: %d,@ kaddr: 0x%Lx,@ phys: 0x%Lx%a@]]"
@@ -272,18 +273,17 @@ module Region = struct
     alloc_free reg.fd;
     Unix.close reg.fd
 
-  (* Note — first access to mmaped memory clears it. *)
-  let alloc ?init ?release:(released = true) size =
+  let alloc ?init ?release:(do_release = true) size =
     let fd    = alloc_region PAGES_EXACT size in
     let kaddr = alloc_kaddr fd
     and phys  = alloc_phys fd
-    and mmap  = lazy ( let p = super_unsafe_ba_mmap fd size in bzero p; p ) in
+    and mmap  = lazy (super_unsafe_ba_mmap fd size) in
     let res = { fd; size; kaddr; phys; mmap; __xx = ignore } in
     Log.debug (fun k -> k "Region.alloc ->@ %a" pp res);
     Option.fold init ~none:() ~some:(fun s ->
       Bigstring.blit_from_string ~n:(String.length s |> min size) 
         s (Lazy.force mmap));
-    if released then release res;
+    if do_release then release res;
     res
 end
 
@@ -326,6 +326,7 @@ let init_vm ?(vcpus = 1) ?(protected = true) () =
   and pgd      = Region.alloc ~release pgd_size
   and last_ran = Region.alloc ~release (max_vm_vcpus * sizeof_int) in
 
+  Region.bzero host_kvm;
   host_kvm.@[arch_pkvm_enabled] <- protected;
   host_kvm.@[created_vcpus] <- Int32.of_int vcpus;
 
@@ -352,6 +353,7 @@ let init_vcpu ?(index_check = true) vm idx =
   let host_vcpu = Region.alloc ~release struct_kvm_vcpu_size
   and hyp_vcpu  = Region.alloc ~release (hyp_vcpu_size + vm.vcpus * sizeof_void_p) in
 
+  Region.bzero host_vcpu;
   host_vcpu.@[vcpu_idx] <- Int32.of_int idx;
   host_vcpu.@[vcpu_hcr_el2] <- Int64.(1L lsl 31);
 
