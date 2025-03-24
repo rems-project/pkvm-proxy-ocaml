@@ -75,6 +75,26 @@ let t_vcpu_put_twice = test "vcpu_put twice" @@ fun _ ->
   teardown_vm vm;
   free_vcpu vcpu
 
+let t_vcpu_run_no_load = test "vcpu_run no load" @@ fun _ ->
+  let vm = init_vm () in
+  let vcpu = init_vcpu vm 0 in
+  pkvm_expect_error vcpu_run vcpu;
+  teardown_vm vm;
+  free_vcpu vcpu
+
+let t_vcpu_run_bad_load = test "vcpu_run bad vcpu" @@ fun _ ->
+  let vm = init_vm ~vcpus:2 () in
+  let vcpu0 = init_vcpu vm 0
+  and vcpu1 = init_vcpu vm 1
+  and reg = Region.alloc 0x2000 in
+  vcpu_load vcpu0;
+  pkvm_expect_error vcpu_run vcpu1;
+  pkvm_expect_error vcpu_run { vcpu1 with mem = reg };
+  vcpu_put();
+  teardown_vm vm;
+  free_vcpu vcpu0; free_vcpu vcpu1
+
+
 let t_share_hyp_twice = test "host_share_hyp twice" @@ fun _ ->
   let mem = Region.alloc 0x1000 in
   host_share_hyp mem;
@@ -174,6 +194,8 @@ let _ = main [
 ; t_vcpu_load_no_handle
 ; t_vcpu_load_bad_index
 ; t_vcpu_put_twice
+; t_vcpu_run_no_load
+; t_vcpu_run_bad_load
 ; t_share_hyp_twice
 ; t_share_guest_twice
 ; t_share_guest_no_vcpu
