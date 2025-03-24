@@ -111,6 +111,8 @@ module Region : sig
       {b WARNING} Only free memory fully owned by the kernel. Freeing memory shared
       or donated away will lead to kernel instability. *)
 
+  val close : 'a region -> unit
+
   val pp : 'a region Fmt.t
 end
 

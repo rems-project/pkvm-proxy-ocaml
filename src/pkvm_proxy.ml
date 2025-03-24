@@ -288,6 +288,8 @@ module Region = struct
     Log.debug (fun k -> k "Region.release@ %a" pp reg);
     alloc_release reg.fd
 
+  let close reg = Unix.close reg.fd
+
   (* Note — bigarrays are unmapped on finalisation. *)
   let free reg =
     Log.debug (fun k -> k "Region.free@ %a" pp reg);
@@ -339,6 +341,13 @@ let host_map_guest ?(memcache_topup = true) vcpu reg guest_phys =
 
 let nr_cpus = 128
 
+(* Memory:
+   - All regions are released, to avoid freeing them while in use if the FD is
+     lost (we crash, for instance).
+   - host_kvm is shared, unshared, and then explicitly freed.
+   - Other 3 structures are donated to the hypervisor. They later reappear as
+     pages in teardown memcache, and freed that way.
+*)
 let init_vm ?(vcpus = 1) ?(protected = true) () =
   let release = true in
   let host_kvm = Region.alloc ~release struct_kvm_size
@@ -349,6 +358,7 @@ let init_vm ?(vcpus = 1) ?(protected = true) () =
   Region.bzero host_kvm;
   host_kvm.@[arch_pkvm_enabled] <- protected;
   host_kvm.@[created_vcpus] <- Int32.of_int vcpus;
+  List.iter Region.close [hyp_vm; pgd; last_ran];
 
   host_share_hyp host_kvm;
   let handle = hvc (Pkvm_init_vm (host_kvm.kaddr, hyp_vm.kaddr, pgd.kaddr, last_ran.kaddr)) in
@@ -372,6 +382,7 @@ let init_vcpu ?(index_check = true) vm idx =
   Region.bzero host_vcpu;
   host_vcpu.@[vcpu_idx] <- Int32.of_int idx;
   host_vcpu.@[vcpu_hcr_el2] <- Int64.(1L lsl 31);
+  Region.close hyp_vcpu;
 
   host_share_hyp host_vcpu;
   hvc (Pkvm_init_vcpu (vm.handle, host_vcpu.kaddr, hyp_vcpu.kaddr));
