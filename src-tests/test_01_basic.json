@@ -20,6 +20,7 @@
     "guest_hvc: version": true,
     "guest_hvc: nonsense": true,
     "guest_hvc: mem_share": true,
-    "guest_hvc: mem_share + mem_unshare": true
+    "guest_hvc: mem_share + mem_unshare": true,
+    "spin and do not leak": true
   }
 }

@@ -287,6 +287,17 @@ let t_guest_hvc_mem_unshare =
   Region.free exe;
   Region.free mem
 
+(* Tests region resource leaks. About 2500 spins leave a 512M machine without
+   memory. *)
+let t_burn_in spins = test "spin and do not leak" @@ fun _ ->
+  for i = 1 to spins do
+    Fmt.pr "%a %d@." Fmt.(styled (`Fg (`Hi `Red)) string) "->> cycle:" i;
+    let vm = init_vm ~vcpus:10 () in
+    let vcpus = List.init 10 (init_vcpu vm) in
+    teardown_vm vm;
+    List.iter free_vcpu vcpus
+  done
+
 let _ = main [
   t_share_hyp;
   t_share_unshare_hyp;
@@ -308,4 +319,5 @@ let _ = main [
   t_guest_hvc_nonsense;
   t_guest_hvc_mem_share;
   t_guest_hvc_mem_unshare;
+  t_burn_in 0;
 ]
