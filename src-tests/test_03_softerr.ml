@@ -23,7 +23,7 @@ let t_init_vm_nonsense_vcpus = test "init vm with nonsense cpus" @@ fun _ ->
 
 let t_init_nonexistent_vcpu = test "init nonexistent vcpu" @@ fun _ ->
   let vm = init_vm ~vcpus:2 () in
-  pkvm_expect_error (init_vcpu ~index_check:false vm) 3;
+  pkvm_expect_error (init_vcpu vm) 3;
   teardown_vm vm
 
 let t_init_vcpu_backwards = test "init_vcpu out-of-order" @@ fun _ ->
