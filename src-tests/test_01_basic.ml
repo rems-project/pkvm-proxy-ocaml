@@ -10,6 +10,12 @@ let trap_on_hypercall =
   Cond.(exit_is 2 &&& fault (fun f ->
     f.esr_el2 = 0x5a000000L && f.hpfar_el2 = 0L && f.far_el2 = 0L))
 
+let push_memcache ?(offset = 0) (head, nr) region =
+  if offset < 0 then invalid_arg "push_memcache: negative offset";
+  let _, phys = Region.addr region in
+  Bigstring.set_int64 (Region.memory region) offset head;
+  (Int64.(phys + of_int offset), nr + 1)
+
 let t_share_hyp = test "share_hyp" @@ fun _ ->
   let mem = Region.alloc 0x1000 in
   host_share_hyp mem
@@ -97,6 +103,22 @@ let t_map_some_memcache = test "host_map_guest with some memcache" @@ fun _ ->
   free_vcpu vcpu;
   host_reclaim_region mem;
   Region.free mem
+
+let t_map_memcache_manual = test "host_map_guest with manual memcache" @@ fun _ ->
+  let mem = Region.alloc 0x1000 in
+  let vm = init_vm () in
+  let vcpu = init_vcpu vm 0 in
+  let mc_pages = List.init 10 (fun _ -> Region.alloc 0x1000 ~release:true) in
+  vcpu_load vcpu;
+  let mc = List.fold_left push_memcache vcpu.mem.@[vcpu_memcache] mc_pages in
+  vcpu.mem.@[vcpu_memcache] <- mc;
+  host_map_guest ~memcache_topup:false vcpu mem 0L;
+  vcpu_put ();
+  teardown_vm vm;
+  free_vcpu vcpu;
+  host_reclaim_region mem;
+  Region.free mem;
+  List.iter Region.close mc_pages
 
 let t_adjust_pc = test "adjust_pc" @@ fun _ ->
   let vm = init_vm () in
@@ -276,6 +298,7 @@ let _ = main [
   t_map_unmap;
   t_map_no_memcache;
   t_map_some_memcache;
+  t_map_memcache_manual;
   t_adjust_pc;
   t_timer_set_cntvoff;
   t_vcpu_run;

@@ -11,6 +11,7 @@
     "host_map_guest + host_reclaim_page": true,
     "host_map_guest with no memcache": true,
     "host_map_guest with some memcache": true,
+    "host_map_guest with manual memcache": true,
     "adjust_pc": true,
     "timer_set_cntvoff": true,
     "vcpu_run": true,
