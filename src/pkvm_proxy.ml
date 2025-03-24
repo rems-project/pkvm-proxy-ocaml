@@ -104,10 +104,9 @@ let struct_kvm_vcpu_size       = ioctl_io  pkvm 's' 4
 let struct_kvm_vcpu_get_offset = ioctl_int pkvm 's' 5
 let hyp_vcpu_size              = ioctl_io  pkvm 's' 6
 
-let topup_hyp_memcache ptr min_pages =
-  if min_pages < 1 then invalid_arg "topup_hyp_memcache" else
+let topup_memcache_ptr ptr min_pages =
+  if min_pages < 0 then invalid_arg __FUNCTION__ else
   ioctl pkvm `Wr 'm' min_pages ptr |> returns_0
-let free_hyp_memcache ptr = ioctl pkvm `Wr 'm' 0 ptr |> returns_0
 
 (** Regions **)
 
@@ -130,10 +129,7 @@ type ('a, 'b) field = F of int * 'b rd * 'b wr
 let ( .@[] ) (type a) (rg : a region) (F (off, r, _) : (a, _) field) = r (Lazy.force rg.mmap) off
 let ( .@[]<- ) (type a) (rg : a region) (F (off, _, w) : (a, _) field) v = w (Lazy.force rg.mmap) off v
 
-(* memcache is represented by a (bigarray-wrapped) pointer; offset computation
-   corresponds to extracting the array slice. *)
-type memcache = bigstring
-let read_memcache s i = Array1.sub s i sizeof_hprox_memcache
+type memcache = int64 * int
 
 type registers = { regs : int64 array; sp : int64; pc : int64; pstate : int64; }
 
@@ -167,6 +163,16 @@ let read_fault_info s i =
     hpfar_el2 = get_int64 s (i @+ 2);
     disr_el1  = get_int64 s (i @+ 3); }
 
+let read_memcache s i =
+  let open Bigstring in
+  (get_int64 s (i + memcache_head_off),
+   get_int64 s (i + memcache_nr_off) |> Int64.to_int)
+
+let write_memcache s i (head, n) =
+  let open Bigstring in
+  set_int64 s (i + memcache_head_off) head;
+  set_int64 s (i + memcache_nr_off) (Int64.of_int n)
+
 let not_implemented _ = failwith "structure field conversion not implemented"
 let f_int64 = Bigstring.(get_int64, set_int64)
 let f_int32 = Bigstring.(get_int32, set_int32)
@@ -183,7 +189,7 @@ let vcpu_array            = struct_kvm 1 f_not_implemented
 let max_vcpus             = struct_kvm 2 f_int32
 let created_vcpus         = struct_kvm 3 f_int32
 let arch_pkvm_enabled     = struct_kvm 4 f_bool
-let arch_pkvm_teardown_mc = struct_kvm 5 (read_memcache, not_implemented)
+let arch_pkvm_teardown_mc = struct_kvm 5 (read_memcache, write_memcache)
 
 type struct_kvm_vcpu
 
@@ -198,7 +204,7 @@ let vcpu_hcr_el2  = struct_kvm_vcpu 5 f_int64
 let vcpu_fault    = struct_kvm_vcpu 6 (read_fault_info, not_implemented)
 let vcpu_regs     = struct_kvm_vcpu 7 (read_regs, write_regs)
 let vcpu_fp_regs  = struct_kvm_vcpu 8 f_not_implemented
-let vcpu_memcache = struct_kvm_vcpu 9 (read_memcache, not_implemented)
+let vcpu_memcache = struct_kvm_vcpu 9 (read_memcache, write_memcache)
 
 (* Printers *)
 
@@ -241,6 +247,8 @@ let pp_fault_info ppf info =
   Fmt.pf ppf "@[<1>[esr: 0x%Lx,@ far: 0x%Lx,@ hpfar: 0x%Lx,@ disr: 0x%Lx]@]"
   info.esr_el2 info.far_el2 info.hpfar_el2 info.disr_el1
 
+let pp_memcache ppf (head, nr) = Fmt.pf ppf "@[<3>mc(0x%Lx,@ %d)@]" head nr
+
 (** Higher-level ops **)
 
 let (//) a b = (a + b - 1) / b
@@ -249,6 +257,19 @@ let hvc func = Log.info (fun k -> k "hvc %a" pp_host_smccc_func func); hvc func
 
 type vm = { handle : int; vcpus: int; mem : struct_kvm region }
 type vcpu = { idx : int; mem : struct_kvm_vcpu region; vm : vm }
+
+let topup_memcache mc min =
+  let buf = Bigstring.create sizeof_hprox_memcache in
+  write_memcache buf 0 mc;
+  topup_memcache_ptr buf min;
+  let mc1 = read_memcache buf 0 in
+  Log.debug (fun k -> k "memcache %a %d -> %a" pp_memcache mc min pp_memcache mc1);
+  mc1
+
+let free_memcache mc = topup_memcache mc 0
+
+let topup_vcpu_memcache { mem; _ } min =
+  mem.@[vcpu_memcache] <- topup_memcache mem.@[vcpu_memcache] min
 
 module Region = struct
 
@@ -313,7 +334,7 @@ let host_map_guest ?(memcache_topup = true) vcpu reg guest_phys =
   and gphys = guest_phys lsr page_shift
   and mc = 5 * (reg.size // page_size) in
   Log.debug (fun k -> k "host_map_guest %a" Region.pp reg);
-  if memcache_topup then topup_hyp_memcache vcpu.mem.@[vcpu_memcache] mc;
+  if memcache_topup then topup_vcpu_memcache vcpu mc;
   for_each_page reg.size @@ fun pg -> hvc (Pkvm_host_map_guest (phys + pg, gphys + pg))
 
 let max_vm_vcpus = 16
@@ -339,7 +360,7 @@ let init_vm ?(vcpus = 1) ?(protected = true) () =
 let teardown_vm vm =
   Log.debug (fun k -> k "teardown_vm@ %d@ %a@ ->" vm.handle Region.pp vm.mem);
   hvc (Pkvm_teardown_vm vm.handle);
-  free_hyp_memcache vm.mem.@[arch_pkvm_teardown_mc];
+  free_memcache vm.mem.@[arch_pkvm_teardown_mc] |> ignore;
   host_unshare_hyp vm.mem;
   Region.free vm.mem
 
@@ -372,8 +393,6 @@ let vcpu_run vcpu = hvc (Kvm_vcpu_run vcpu.mem.kaddr)
 let vcpu_sync_state () = hvc Pkvm_vcpu_sync_state
 
 let timer_set_cntvoff cntvoff = hvc (Kvm_timer_set_cntvoff cntvoff)
-
-let topup_vcpu_memcache vcpu = topup_hyp_memcache vcpu.mem.@[vcpu_memcache]
 
 let set_vcpu_regs vcpu regs =
   vcpu.mem.@[vcpu_regs] <- regs; vcpu_set_dirty vcpu

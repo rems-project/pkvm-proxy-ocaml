@@ -8,6 +8,7 @@
 module Bigstring : sig
   open Bigarray
   type t = (char, int8_unsigned_elt, c_layout) Array1.t
+  val create : int -> t
   (* These are of the native-endian variety. *)
   val get_int64 : t -> int -> int64
   val set_int64 : t -> int -> int64 -> unit

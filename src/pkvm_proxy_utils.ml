@@ -11,6 +11,7 @@ let reset_early_log = Logs.set_reporter
 module Bigstring = struct
   open Bigarray
   type t = (char, int8_unsigned_elt, c_layout) Array1.t
+  let create = Array1.create char c_layout
   (* These are of the native-endian variety. *)
   external get_int64 : t -> int -> int64 = "%caml_bigstring_get64"
   external set_int64 : t -> int -> int64 -> unit = "%caml_bigstring_set64"

@@ -133,7 +133,7 @@ val ( .@[]<- ) : 'a region -> ('a, 'b) field -> 'b -> unit
 
 (** {2 Region-mapped pKVM structures} *)
 
-type memcache
+type memcache = int64 * int
 
 type registers = { regs : int64 array; sp : int64; pc : int64; pstate : int64; }
 (** Some registers. *)
@@ -148,6 +148,7 @@ type fault_info = private {
 
 val pp_regs : registers Fmt.t
 val pp_fault_info : fault_info Fmt.t
+val pp_memcache : memcache Fmt.t
 
 type struct_kvm
 (** [struct kvm] from [kvm_host.h], with accessors to a few fields. *)
@@ -209,8 +210,8 @@ val vcpu_sync_state : unit -> unit
 
 val timer_set_cntvoff : int64 -> unit
 
-val topup_hyp_memcache : memcache -> int -> unit
-val free_hyp_memcache : memcache -> unit
+val topup_memcache : memcache -> int -> memcache
+val free_memcache : memcache -> memcache
 val topup_vcpu_memcache : vcpu -> int -> unit
 
 val set_vcpu_regs : vcpu -> registers -> unit

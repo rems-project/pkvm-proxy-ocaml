@@ -22,7 +22,11 @@ int main(void) {
   printf("let sizeof_void_p = %lu\n", sizeof(void *));
   printf("let sizeof_int = %lu\n", sizeof(int));
   printf("let sizeof___u64 = %lu\n", sizeof(__u64));
+
+  /* We should ask the kernel about struct kvm_hyp_memcache metrics instead. */
   printf("let sizeof_hprox_memcache = %lu\n", sizeof(struct hprox_memcache));
+  printf("let memcache_head_off = %lu\n", __builtin_offsetof(struct hprox_memcache, head));
+  printf("let memcache_nr_off = %lu\n", __builtin_offsetof(struct hprox_memcache, nr_pages));
 
   /* Hypercalls. */
   printf("let smccc_func_number : type a. a host_smccc_func -> _ = function\n");

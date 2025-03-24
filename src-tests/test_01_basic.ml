@@ -88,9 +88,9 @@ let t_map_some_memcache = test "host_map_guest with some memcache" @@ fun _ ->
   let vm = init_vm () in
   let vcpu = init_vcpu vm 0 in
   vcpu_load vcpu;
-  topup_hyp_memcache (vcpu.mem.@[vcpu_memcache]) 1;
+  topup_vcpu_memcache vcpu 1;
   pkvm_expect_error (host_map_guest ~memcache_topup:false vcpu mem) 0L;
-  topup_hyp_memcache (vcpu.mem.@[vcpu_memcache]) 10;
+  topup_vcpu_memcache vcpu 10;
   host_map_guest ~memcache_topup:false vcpu mem 0L;
   vcpu_put ();
   teardown_vm vm;
