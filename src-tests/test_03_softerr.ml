@@ -13,8 +13,13 @@ let t_hi_hcall = test "hi hcall" @@ fun _ ->
   pkvm_expect_proxy_error (hvc_raw 93) [||];
   teardown_vm vm
 
-let t_init_empty_vm = test "init vm with no cpus" @@ fun _ ->
-  pkvm_expect_error (init_vm ~vcpus:0) ()
+let t_init_vm_nonsense_vcpus = test "init vm with nonsense cpus" @@ fun _ ->
+  pkvm_expect_error (init_vm ~vcpus:0) ();
+  pkvm_expect_error (init_vm ~vcpus:(-10)) ();
+  init_vm ~vcpus:512 () |> teardown_vm;
+  (* XXX pKVM has no limit on the number of vCPUs!*)
+  (* init_vm ~vcpus:99999 () |> teardown_vm; *)
+  ()
 
 let t_init_nonexistent_vcpu = test "init nonexistent vcpu" @@ fun _ ->
   let vm = init_vm ~vcpus:2 () in
@@ -47,14 +52,14 @@ let t_vcpu_load_overwrite = test "load_vcpu load overwrite" @@ fun _ ->
   free_vcpu vcpu0;
   free_vcpu vcpu1
 
-let t_vcpu_load_no_handle = test "load_vcpu no vm handle" @@ fun _ ->
+let t_vcpu_load_no_handle = test "load_vcpu bad vm handle" @@ fun _ ->
   let vm = init_vm () in
   let vcpu = init_vcpu vm 0 in
   vcpu_load { vcpu with vm = { vm with handle = 99999 } };
   teardown_vm vm;
   free_vcpu vcpu
 
-let t_vcpu_load_bad_index = test "load_vcpu no bad index" @@ fun _ ->
+let t_vcpu_load_bad_index = test "load_vcpu bad index" @@ fun _ ->
   let vm = init_vm () in
   let vcpu = init_vcpu vm 0 in
   vcpu_load { vcpu with idx = 999 };
@@ -161,7 +166,7 @@ let t_guest_share_same_addr =
 let _ = main [
   t_low_hcall
 ; t_hi_hcall
-; t_init_empty_vm
+; t_init_vm_nonsense_vcpus
 ; t_init_nonexistent_vcpu
 ; t_init_vcpu_backwards
 ; t_vcpu_load_reload
