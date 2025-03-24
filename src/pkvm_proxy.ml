@@ -337,15 +337,14 @@ let host_map_guest ?(memcache_topup = true) vcpu reg guest_phys =
   if memcache_topup then topup_vcpu_memcache vcpu mc;
   for_each_page reg.size @@ fun pg -> hvc (Pkvm_host_map_guest (phys + pg, gphys + pg))
 
-let max_vm_vcpus = 16
+let nr_cpus = 128
 
 let init_vm ?(vcpus = 1) ?(protected = true) () =
-  assert (vcpus < max_vm_vcpus);
   let release = true in
   let host_kvm = Region.alloc ~release struct_kvm_size
   and hyp_vm   = Region.alloc ~release (hyp_vm_size + vcpus * sizeof_void_p)
   and pgd      = Region.alloc ~release pgd_size
-  and last_ran = Region.alloc ~release (max_vm_vcpus * sizeof_int) in
+  and last_ran = Region.alloc ~release (nr_cpus * sizeof_int) in
 
   Region.bzero host_kvm;
   host_kvm.@[arch_pkvm_enabled] <- protected;
