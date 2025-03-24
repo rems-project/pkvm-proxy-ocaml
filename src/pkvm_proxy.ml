@@ -358,13 +358,18 @@ let init_vm ?(vcpus = 1) ?(protected = true) () =
   Region.bzero host_kvm;
   host_kvm.@[arch_pkvm_enabled] <- protected;
   host_kvm.@[created_vcpus] <- Int32.of_int vcpus;
-  List.iter Region.close [hyp_vm; pgd; last_ran];
-
   host_share_hyp host_kvm;
-  let handle = hvc (Pkvm_init_vm (host_kvm.kaddr, hyp_vm.kaddr, pgd.kaddr, last_ran.kaddr)) in
 
-  Log.debug (fun k -> k "init_vm ->@ %d@ %a" handle Region.pp host_kvm);
-  { handle; vcpus; mem = host_kvm }
+  match hvc (Pkvm_init_vm (host_kvm.kaddr, hyp_vm.kaddr, pgd.kaddr, last_ran.kaddr)) with
+  | handle ->
+      List.iter Region.close [hyp_vm; pgd; last_ran];
+      Log.debug (fun k -> k "init_vm ->@ %d@ %a" handle Region.pp host_kvm);
+      { handle; vcpus; mem = host_kvm }
+  | exception exn ->
+      host_unshare_hyp host_kvm;
+      List.iter Region.free [hyp_vm; pgd; last_ran];
+      Region.free host_kvm;
+      raise exn
 
 let teardown_vm vm =
   Log.debug (fun k -> k "teardown_vm %d@ %a" vm.handle Region.pp vm.mem);
@@ -381,13 +386,18 @@ let init_vcpu vm idx =
   Region.bzero host_vcpu;
   host_vcpu.@[vcpu_idx] <- Int32.of_int idx;
   host_vcpu.@[vcpu_hcr_el2] <- Int64.(1L lsl 31);
-  Region.close hyp_vcpu;
-
   host_share_hyp host_vcpu;
-  hvc (Pkvm_init_vcpu (vm.handle, host_vcpu.kaddr, hyp_vcpu.kaddr));
 
-  Log.debug (fun k -> k "init_vcpu %d %d ->@ %a" vm.handle idx Region.pp host_vcpu);
-  { idx; mem = host_vcpu; vm }
+  match hvc (Pkvm_init_vcpu (vm.handle, host_vcpu.kaddr, hyp_vcpu.kaddr)) with
+  | () ->
+      Region.close hyp_vcpu;
+      Log.debug (fun k -> k "init_vcpu %d %d ->@ %a" vm.handle idx Region.pp host_vcpu);
+      { idx; mem = host_vcpu; vm }
+  | exception exn ->
+      host_unshare_hyp host_vcpu;
+      Region.free hyp_vcpu;
+      Region.free host_vcpu;
+      raise exn
 
 let free_vcpu vcpu =
   host_unshare_hyp vcpu.mem;
