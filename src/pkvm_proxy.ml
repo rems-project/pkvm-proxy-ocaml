@@ -285,12 +285,12 @@ module Region = struct
     (fun ppf x -> if Lazy.is_val x then Fmt.pf ppf ",@ mapped" else ()) reg.mmap
 
   let release reg =
-    Log.debug (fun k -> k "Region.release %a" pp reg);
+    Log.debug (fun k -> k "Region.release@ %a" pp reg);
     alloc_release reg.fd
 
   (* Note — bigarrays are unmapped on finalisation. *)
   let free reg =
-    Log.debug (fun k -> k "Region.free %a" pp reg);
+    Log.debug (fun k -> k "Region.free@ %a" pp reg);
     alloc_free reg.fd;
     Unix.close reg.fd
 
@@ -300,7 +300,7 @@ module Region = struct
     and phys  = alloc_phys fd
     and mmap  = lazy (super_unsafe_ba_mmap fd size) in
     let res = { fd; size; kaddr; phys; mmap; __xx = ignore } in
-    Log.debug (fun k -> k "Region.alloc ->@ %a" pp res);
+    Log.debug (fun k -> k "Region.alloc %d ->@ %a" size pp res);
     Option.fold init ~none:() ~some:(fun s ->
       Bigstring.blit_from_string ~n:(String.length s |> min size) 
         s (Lazy.force mmap));
@@ -317,15 +317,15 @@ let for_each_page ?(base = 0L) size f =
   done
 
 let host_share_hyp reg =
-  Log.debug (fun k -> k "host_share_hyp %a" Region.pp reg);
+  Log.debug (fun k -> k "host_share_hyp@ %a" Region.pp reg);
   for_each_page ~base:reg.phys reg.size @@ fun pg -> hvc (Pkvm_host_share_hyp pg)
 
 let host_unshare_hyp reg =
-  Log.debug (fun k -> k "host_unshare_hyp %a" Region.pp reg);
+  Log.debug (fun k -> k "host_unshare_hyp@ %a" Region.pp reg);
   for_each_page ~base:reg.phys reg.size @@ fun pg -> hvc (Pkvm_host_unshare_hyp pg)
 
 let host_reclaim_region reg =
-  Log.debug (fun k -> k "host_reclaim_region %a" Region.pp reg);
+  Log.debug (fun k -> k "host_reclaim_region@ %a" Region.pp reg);
   for_each_page ~base:reg.phys reg.size @@ fun pg -> hvc (Pkvm_host_reclaim_page pg)
 
 let host_map_guest ?(memcache_topup = true) vcpu reg guest_phys =
@@ -333,7 +333,7 @@ let host_map_guest ?(memcache_topup = true) vcpu reg guest_phys =
   let phys  = reg.phys lsr page_shift
   and gphys = guest_phys lsr page_shift
   and mc = 5 * (reg.size // page_size) in
-  Log.debug (fun k -> k "host_map_guest %a" Region.pp reg);
+  Log.debug (fun k -> k "host_map_guest@ %a" Region.pp reg);
   if memcache_topup then topup_vcpu_memcache vcpu mc;
   for_each_page reg.size @@ fun pg -> hvc (Pkvm_host_map_guest (phys + pg, gphys + pg))
 
@@ -343,7 +343,7 @@ let init_vm ?(vcpus = 1) ?(protected = true) () =
   assert (vcpus < max_vm_vcpus);
   let release = true in
   let host_kvm = Region.alloc ~release struct_kvm_size
-  and hyp_kvm  = Region.alloc ~release (hyp_vm_size + vcpus * sizeof_void_p)
+  and hyp_vm   = Region.alloc ~release (hyp_vm_size + vcpus * sizeof_void_p)
   and pgd      = Region.alloc ~release pgd_size
   and last_ran = Region.alloc ~release (max_vm_vcpus * sizeof_int) in
 
@@ -352,21 +352,17 @@ let init_vm ?(vcpus = 1) ?(protected = true) () =
   host_kvm.@[created_vcpus] <- Int32.of_int vcpus;
 
   host_share_hyp host_kvm;
-  let handle = hvc (Pkvm_init_vm (host_kvm.kaddr, hyp_kvm.kaddr, pgd.kaddr, last_ran.kaddr)) in
+  let handle = hvc (Pkvm_init_vm (host_kvm.kaddr, hyp_vm.kaddr, pgd.kaddr, last_ran.kaddr)) in
 
   Log.debug (fun k -> k "init_vm ->@ %d@ %a" handle Region.pp host_kvm);
   { handle; vcpus; mem = host_kvm }
 
 let teardown_vm vm =
-  Log.debug (fun k -> k "teardown_vm@ %d@ %a@ ->" vm.handle Region.pp vm.mem);
+  Log.debug (fun k -> k "teardown_vm %d@ %a" vm.handle Region.pp vm.mem);
   hvc (Pkvm_teardown_vm vm.handle);
   free_memcache vm.mem.@[arch_pkvm_teardown_mc] |> ignore;
   host_unshare_hyp vm.mem;
   Region.free vm.mem
-
-let free_vcpu vcpu =
-  host_unshare_hyp vcpu.mem;
-  Region.free vcpu.mem
 
 let init_vcpu ?(index_check = true) vm idx =
   if index_check && vm.vcpus <= idx then Fmt.invalid_arg "init_vcpu: cpu %d (max %d)" idx vm.vcpus;
@@ -381,8 +377,12 @@ let init_vcpu ?(index_check = true) vm idx =
   host_share_hyp host_vcpu;
   hvc (Pkvm_init_vcpu (vm.handle, host_vcpu.kaddr, hyp_vcpu.kaddr));
 
-  Log.debug (fun k -> k "init_vcpu@ %d@ %d@ -> %a" vm.handle idx Region.pp host_vcpu);
+  Log.debug (fun k -> k "init_vcpu %d %d ->@ %a" vm.handle idx Region.pp host_vcpu);
   { idx; mem = host_vcpu; vm }
+
+let free_vcpu vcpu =
+  host_unshare_hyp vcpu.mem;
+  Region.free vcpu.mem
 
 let vcpu_load vcpu = hvc (Pkvm_vcpu_load (vcpu.vm.handle, vcpu.idx, 0L)) |> ignore
 let vcpu_put () = hvc Pkvm_vcpu_put
