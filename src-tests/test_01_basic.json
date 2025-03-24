@@ -1,7 +1,6 @@
 {
   "loglevel": "info",
   "run": {
-    "share_hyp": true,
     "host_share|unshare_hyp": true,
     "init|teardown_vm": true,
     "init_vcpu + deinit": true,
