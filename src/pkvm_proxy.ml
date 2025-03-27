@@ -266,7 +266,7 @@ let topup_memcache mc min =
   Log.debug (fun k -> k "memcache %a %d -> %a" pp_memcache mc min pp_memcache mc1);
   mc1
 
-let free_memcache mc = topup_memcache mc 0
+let free_memcache mc = topup_memcache mc 0 |> ignore
 
 let topup_vcpu_memcache { mem; _ } min =
   mem.@[vcpu_memcache] <- topup_memcache mem.@[vcpu_memcache] min
@@ -374,7 +374,7 @@ let init_vm ?(vcpus = 1) ?(protected = true) () =
 let teardown_vm vm =
   Log.debug (fun k -> k "teardown_vm %d@ %a" vm.handle Region.pp vm.mem);
   hvc (Pkvm_teardown_vm vm.handle);
-  free_memcache vm.mem.@[arch_pkvm_teardown_mc] |> ignore;
+  free_memcache vm.mem.@[arch_pkvm_teardown_mc];
   host_unshare_hyp vm.mem;
   Region.free vm.mem
 
@@ -400,6 +400,7 @@ let init_vcpu vm idx =
       raise exn
 
 let free_vcpu vcpu =
+  free_memcache vcpu.mem.@[vcpu_memcache];
   host_unshare_hyp vcpu.mem;
   Region.free vcpu.mem
 

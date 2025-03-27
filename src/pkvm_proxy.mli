@@ -213,7 +213,7 @@ val vcpu_sync_state : unit -> unit
 val timer_set_cntvoff : int64 -> unit
 
 val topup_memcache : memcache -> int -> memcache
-val free_memcache : memcache -> memcache
+val free_memcache : memcache -> unit
 val topup_vcpu_memcache : vcpu -> int -> unit
 
 val set_vcpu_regs : vcpu -> registers -> unit
