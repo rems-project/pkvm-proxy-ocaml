@@ -189,7 +189,7 @@ type vcpu = { idx : int; mem : struct_kvm_vcpu region; vm : vm }
 val host_share_hyp : 'a region -> unit
 val host_unshare_hyp : 'a region -> unit
 
-val host_map_guest : ?memcache_topup:bool -> vcpu -> 'a region -> int64 -> unit
+val host_map_guest : ?topup_memcache:bool -> vcpu -> 'a region -> int64 -> unit
 (** Maps a region into the guest.
 
     {b Warning} Must be invoked in a [vcpu-load]...[vcpu-put] block. *)
@@ -197,10 +197,10 @@ val host_map_guest : ?memcache_topup:bool -> vcpu -> 'a region -> int64 -> unit
 val host_reclaim_region : 'a region -> unit
 
 val init_vm : ?vcpus:int -> ?protected:bool -> unit -> vm
-val teardown_vm : vm -> unit
+val teardown_vm : ?free_memcache:bool -> vm -> unit
 
 val init_vcpu : vm -> int ->  vcpu
-val free_vcpu : vcpu -> unit
+val free_vcpu : ?free_memcache:bool -> vcpu -> unit
 
 val vcpu_load : vcpu -> unit
 val vcpu_put : unit -> unit

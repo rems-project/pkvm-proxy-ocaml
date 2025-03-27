@@ -330,13 +330,13 @@ let host_reclaim_region reg =
   Log.debug (fun k -> k "host_reclaim_region@ %a" Region.pp reg);
   for_each_page ~base:reg.phys reg.size @@ fun pg -> hvc (Pkvm_host_reclaim_page pg)
 
-let host_map_guest ?(memcache_topup = true) vcpu reg guest_phys =
+let host_map_guest ?(topup_memcache = true) vcpu reg guest_phys =
   let open Int64 in
   let phys  = reg.phys lsr page_shift
   and gphys = guest_phys lsr page_shift
   and mc = 5 * (reg.size // page_size) in
   Log.debug (fun k -> k "host_map_guest@ %a" Region.pp reg);
-  if memcache_topup then topup_vcpu_memcache vcpu mc;
+  if topup_memcache then topup_vcpu_memcache vcpu mc;
   for_each_page reg.size @@ fun pg -> hvc (Pkvm_host_map_guest (phys + pg, gphys + pg))
 
 let nr_cpus = 128
@@ -371,10 +371,10 @@ let init_vm ?(vcpus = 1) ?(protected = true) () =
       Region.free host_kvm;
       raise exn
 
-let teardown_vm vm =
+let teardown_vm ?free_memcache:(free_mc = true) vm =
   Log.debug (fun k -> k "teardown_vm %d@ %a" vm.handle Region.pp vm.mem);
   hvc (Pkvm_teardown_vm vm.handle);
-  free_memcache vm.mem.@[arch_pkvm_teardown_mc];
+  if free_mc then free_memcache vm.mem.@[arch_pkvm_teardown_mc];
   host_unshare_hyp vm.mem;
   Region.free vm.mem
 
@@ -399,8 +399,8 @@ let init_vcpu vm idx =
       Region.free host_vcpu;
       raise exn
 
-let free_vcpu vcpu =
-  free_memcache vcpu.mem.@[vcpu_memcache];
+let free_vcpu ?free_memcache:(free_mc = true) vcpu =
+  if free_mc then free_memcache vcpu.mem.@[vcpu_memcache];
   host_unshare_hyp vcpu.mem;
   Region.free vcpu.mem
 

@@ -78,7 +78,7 @@ let t_map_no_memcache = test "host_map_guest with no memcache" @@ fun _ ->
   let vm = init_vm () in
   let vcpu = init_vcpu vm 0 in
   vcpu_load vcpu;
-  pkvm_expect_error (host_map_guest ~memcache_topup:false vcpu mem) 0L;
+  pkvm_expect_error (host_map_guest ~topup_memcache:false vcpu mem) 0L;
   vcpu_put ();
   teardown_vm vm;
   free_vcpu vcpu;
@@ -91,9 +91,9 @@ let t_map_some_memcache = test "host_map_guest with some memcache" @@ fun _ ->
   let vcpu = init_vcpu vm 0 in
   vcpu_load vcpu;
   topup_vcpu_memcache vcpu 1;
-  pkvm_expect_error (host_map_guest ~memcache_topup:false vcpu mem) 0L;
+  pkvm_expect_error (host_map_guest ~topup_memcache:false vcpu mem) 0L;
   topup_vcpu_memcache vcpu 10;
-  host_map_guest ~memcache_topup:false vcpu mem 0L;
+  host_map_guest ~topup_memcache:false vcpu mem 0L;
   vcpu_put ();
   teardown_vm vm;
   free_vcpu vcpu;
@@ -108,10 +108,10 @@ let t_map_memcache_manual = test "host_map_guest with manual memcache" @@ fun _ 
   vcpu_load vcpu;
   let mc = List.fold_left push_memcache vcpu.mem.@[vcpu_memcache] mc_pages in
   vcpu.mem.@[vcpu_memcache] <- mc;
-  host_map_guest ~memcache_topup:false vcpu mem 0L;
+  host_map_guest ~topup_memcache:false vcpu mem 0L;
   vcpu_put ();
-  teardown_vm vm;
-  free_vcpu vcpu;
+  teardown_vm ~free_memcache:false vm;
+  free_vcpu ~free_memcache:false vcpu;
   host_reclaim_region mem;
   Region.free mem;
   List.iter Region.close mc_pages
