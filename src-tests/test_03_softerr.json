@@ -10,6 +10,7 @@
     "load_vcpu load overwrite": true,
     "load_vcpu bad vm handle": true,
     "load_vcpu bad index": true,
+    "vcpu_load uninitialised": true
     "vcpu_put twice": true,
     "vcpu_run no load": true,
     "vcpu_run bad vcpu": true,
@@ -21,5 +22,3 @@
     "host_map_guest addr clash": true
   }
 }
-
-

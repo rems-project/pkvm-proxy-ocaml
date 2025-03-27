@@ -66,6 +66,13 @@ let t_vcpu_load_bad_index = test "load_vcpu bad index" @@ fun _ ->
   teardown_vm vm;
   free_vcpu vcpu
 
+let t_load_vcpu_uninit = test "vcpu_load uninitialised" @@ fun _ ->
+  let vm = init_vm ~vcpus:2 () in
+  let vcpu0 = init_vcpu vm 0 in
+  vcpu_load { vcpu0 with idx = 1 };
+  teardown_vm vm;
+  free_vcpu vcpu0
+
 let t_vcpu_put_twice = test "vcpu_put twice" @@ fun _ ->
   let vm = init_vm () in
   let vcpu = init_vcpu vm 0 in
@@ -193,6 +200,7 @@ let _ = main [
 ; t_vcpu_load_overwrite
 ; t_vcpu_load_no_handle
 ; t_vcpu_load_bad_index
+; t_load_vcpu_uninit
 ; t_vcpu_put_twice
 ; t_vcpu_run_no_load
 ; t_vcpu_run_bad_load
