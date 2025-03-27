@@ -105,8 +105,11 @@ let struct_kvm_vcpu_get_offset = ioctl_int pkvm 's' 5
 let hyp_vcpu_size              = ioctl_io  pkvm 's' 6
 
 let topup_memcache_ptr ptr min_pages =
-  if min_pages < 0 then invalid_arg __FUNCTION__ else
+  if min_pages < 0 || 0xff <= min_pages then invalid_arg __FUNCTION__ else
   ioctl pkvm `Wr 'm' min_pages ptr |> returns_0
+
+(* XXX extended hyp-proxy *)
+let decode_memcache_ptr ptr = ioctl pkvm `Wr 'm' 0xff ptr |> returns_0
 
 (** Regions **)
 
@@ -142,16 +145,19 @@ type fault_info = {
 
 let (@+) a i = a + i * sizeof___u64
 
+let read_array_int64 s i n = Array.init n (fun j -> Bigstring.get_int64 s (i @+ j))
+and write_array_int64 s i = Array.iteri (fun j -> Bigstring.set_int64 s (i @+ j))
+
 let read_regs s i =
   let open Bigstring in
-  { regs   = Array.init 31 (fun j -> get_int64 s (i @+ j));
+  { regs   = read_array_int64 s i 31;
     sp     = get_int64 s (i @+ 31);
     pc     = get_int64 s (i @+ 32);
     pstate = get_int64 s (i @+ 33); }
 
 let write_regs s i r =
   let open Bigstring in
-  Array.iteri (fun j -> set_int64 s (i @+ j)) r.regs;
+  write_array_int64 s i r.regs;
   set_int64 s (i @+ 31) r.sp;
   set_int64 s (i @+ 32) r.pc;
   set_int64 s (i @+ 33) r.pstate
@@ -247,7 +253,7 @@ let pp_fault_info ppf info =
   Fmt.pf ppf "@[<1>[esr: 0x%Lx,@ far: 0x%Lx,@ hpfar: 0x%Lx,@ disr: 0x%Lx]@]"
   info.esr_el2 info.far_el2 info.hpfar_el2 info.disr_el1
 
-let pp_memcache ppf (head, nr) = Fmt.pf ppf "@[<3>mc(0x%Lx,@ %d)@]" head nr
+let pp_memcache ppf (head, nr) = Fmt.pf ppf "@[<3>mc(0x%Lx, %d)@]" head nr
 
 (** Higher-level ops **)
 
@@ -267,6 +273,12 @@ let topup_memcache mc min =
   mc1
 
 let free_memcache mc = topup_memcache mc 0 |> ignore
+
+let decode_memcache (_, n as mc) =
+  let buf = Bigstring.create (sizeof_hprox_memcache + n * sizeof___u64) in
+  write_memcache buf 0 mc;
+  decode_memcache_ptr buf;
+  read_array_int64 buf sizeof_hprox_memcache n
 
 let topup_vcpu_memcache { mem; _ } min =
   mem.@[vcpu_memcache] <- topup_memcache mem.@[vcpu_memcache] min
