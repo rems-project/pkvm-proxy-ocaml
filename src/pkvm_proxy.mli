@@ -169,7 +169,7 @@ val vcpu_id       : (struct_kvm_vcpu, int32) field
 val vcpu_idx      : (struct_kvm_vcpu, int32) field
 val vcpu_cflags   : (struct_kvm_vcpu, int) field
 val vcpu_iflags   : (struct_kvm_vcpu, int) field
-val vcpu_features : (struct_kvm_vcpu, unit) field
+val vcpu_features : (struct_kvm_vcpu, int) field
 val vcpu_hcr_el2  : (struct_kvm_vcpu, int64) field
 val vcpu_fault    : (struct_kvm_vcpu, fault_info) field
 val vcpu_regs     : (struct_kvm_vcpu, registers) field
