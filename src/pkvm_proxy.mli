@@ -77,16 +77,19 @@ type 'a region
 module Region : sig
 (** Regions and their life-cycle. *)
 
-  val alloc : ?init:string -> ?release:bool -> int -> 'a region
+  val kaddr : 'a region -> int64
+  (* Kernel address *)
 
-  val addr : 'a region -> int64 * int64
-  (** The kernel address, and the physical address, of the region. *)
+  val phys : 'a region -> int64
+  (* Physical address *)
 
   val size : 'a region -> int
-  (** Region size, in bytes. *)
+  (* In bytes *)
 
   val is_mapped : 'a region -> bool
-  (** Did we [mmap] it? *)
+  (* mmaped? *)
+
+  val alloc : ?init:string -> ?release:bool -> int -> 'a region
 
   val bzero : 'a region -> unit
 

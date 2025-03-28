@@ -12,9 +12,8 @@ let trap_on_hypercall =
 
 let push_memcache ?(offset = 0) (head, nr) region =
   if offset < 0 then invalid_arg "push_memcache: negative offset";
-  let _, phys = Region.addr region in
   Bigstring.set_int64 (Region.memory region) offset head;
-  (Int64.(phys + of_int offset), nr + 1)
+  (Int64.(Region.phys region + of_int offset), nr + 1)
 
 let t_share_unshare_hyp = test "host_share|unshare_hyp" @@ fun _ ->
   let mem = Region.alloc 0x1000 in

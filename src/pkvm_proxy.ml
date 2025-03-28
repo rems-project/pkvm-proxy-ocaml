@@ -273,7 +273,8 @@ let topup_vcpu_memcache { mem; _ } min =
 
 module Region = struct
 
-  let addr reg = reg.kaddr, reg.phys
+  let kaddr reg = reg.kaddr
+  and phys reg = reg.phys
   let size reg = reg.size
   let is_mapped reg = Lazy.is_val reg.mmap
   let memory { mmap = lazy mmap; _ } = mmap
