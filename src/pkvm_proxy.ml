@@ -387,8 +387,8 @@ let init_vm ?(vcpus = 1) ?(protected = true) () =
 let teardown_vm ?free_memcache:(free_mc = true) vm =
   Log.debug (fun k -> k "teardown_vm %d@ %a" vm.handle Region.pp vm.mem);
   hvc (Pkvm_teardown_vm vm.handle);
-  if free_mc then free_memcache vm.mem.@[arch_pkvm_teardown_mc];
   host_unshare_hyp vm.mem;
+  if free_mc then free_memcache vm.mem.@[arch_pkvm_teardown_mc];
   Region.free vm.mem
 
 let init_vcpu vm idx =
@@ -413,8 +413,8 @@ let init_vcpu vm idx =
       raise exn
 
 let free_vcpu ?free_memcache:(free_mc = true) vcpu =
-  if free_mc then free_memcache vcpu.mem.@[vcpu_memcache];
   host_unshare_hyp vcpu.mem;
+  if free_mc then free_memcache vcpu.mem.@[vcpu_memcache];
   Region.free vcpu.mem
 
 let vcpu_load vcpu = hvc (Pkvm_vcpu_load (vcpu.vm.handle, vcpu.idx, 0L))
