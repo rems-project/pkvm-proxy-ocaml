@@ -22,4 +22,11 @@
   (package pkvm-proxy)
   (libraries pkvm_proxy pkvm_testlib))
 
+(executable
+  (name random_tester_01)
+  (public_name random-tester-01)
+  (modules random_tester_01)
+  (package pkvm-proxy)
+  (libraries pkvm_proxy pkvm_testlib))
+
 (env (release (link_flags (-ccopt -static))))
