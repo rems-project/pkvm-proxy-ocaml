@@ -78,7 +78,7 @@ let hvc (type a): a host_smccc_func -> a = fun func ->
   | Pkvm_init_vm (host, hyp, pgd, last_ran) -> hvc_raw nr [|host; hyp; pgd; last_ran|]
   | Pkvm_init_vcpu (hdl, host, hyp)         -> hvc_raw nr [|of_int hdl; host; hyp|] |> returns_0
   | Pkvm_teardown_vm hdl                    -> hvc_raw nr [|of_int hdl|] |> returns_0
-  | Pkvm_vcpu_load (hdl, idx, hcr_el2)      -> hvc_raw nr [|of_int hdl; of_int idx; hcr_el2|]
+  | Pkvm_vcpu_load (hdl, idx, hcr_el2)      -> hvc_raw nr [|of_int hdl; of_int idx; hcr_el2|] |> ignore
   | Pkvm_vcpu_put                           -> hvc_raw nr [||] |> returns_0
   | Pkvm_vcpu_sync_state                    -> hvc_raw nr [||] |> returns_0
   | _ -> failwith "hvc: host smccc function not implemented"
@@ -417,7 +417,7 @@ let free_vcpu ?free_memcache:(free_mc = true) vcpu =
   host_unshare_hyp vcpu.mem;
   Region.free vcpu.mem
 
-let vcpu_load vcpu = hvc (Pkvm_vcpu_load (vcpu.vm.handle, vcpu.idx, 0L)) |> ignore
+let vcpu_load vcpu = hvc (Pkvm_vcpu_load (vcpu.vm.handle, vcpu.idx, 0L))
 let vcpu_put () = hvc Pkvm_vcpu_put
 
 let vcpu_set_dirty vcpu = vcpu.mem.@[vcpu_iflags] <- 0x80
